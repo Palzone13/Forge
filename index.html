@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forge — Your Workspace</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #1a1a1a;
+    --border: #2a2a2a;
+    --text: #f0ece4;
+    --muted: #666;
+    --accent: #e8c547;
+    --accent2: #c4a830;
+    --danger: #e85447;
+    --radius: 4px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* Auth Screen */
+  #auth-screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 500;
+    background: var(--bg);
+  }
+  .auth-box {
+    width: 400px;
+    padding: 48px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    animation: fadeUp 0.5s ease;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .auth-logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 48px;
+    letter-spacing: 4px;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .auth-tagline {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 40px;
+    font-weight: 300;
+    letter-spacing: 0.5px;
+  }
+  .auth-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+  }
+  .auth-tab {
+    padding: 10px 20px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.2s;
+  }
+  .auth-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+  .auth-form { display: flex; flex-direction: column; gap: 16px; }
+  .auth-form.hidden { display: none; }
+  .field label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+  .field input {
+    width: 100%;
+    padding: 12px 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    border-radius: var(--radius);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .field input:focus { border-color: var(--accent); }
+  .btn-primary {
+    padding: 14px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 18px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    border-radius: var(--radius);
+    transition: background 0.2s, transform 0.1s;
+    margin-top: 8px;
+  }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-primary:active { transform: scale(0.99); }
+  .auth-msg {
+    font-size: 13px;
+    padding: 10px 14px;
+    border-radius: var(--radius);
+    display: none;
+  }
+  .auth-msg.error { background: rgba(232,84,71,0.12); color: var(--danger); border: 1px solid rgba(232,84,71,0.3); display: block; }
+  .auth-msg.success { background: rgba(232,197,71,0.12); color: var(--accent); border: 1px solid rgba(232,197,71,0.3); display: block; }
+
+  /* Main App */
+  #app-screen { display: none; min-height: 100vh; }
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 40px;
+    height: 64px;
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 100;
+  }
+  .topbar-logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    letter-spacing: 4px;
+    color: var(--accent);
+  }
+  .topbar-user {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .user-email {
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 300;
+  }
+  .btn-ghost {
+    padding: 8px 16px;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    border-radius: var(--radius);
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    transition: all 0.2s;
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  .main-content { padding: 60px 40px; max-width: 1200px; margin: 0 auto; }
+  .greeting {
+    margin-bottom: 60px;
+    animation: fadeUp 0.6s ease 0.1s both;
+  }
+  .greeting h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 64px;
+    letter-spacing: 3px;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .greeting p { color: var(--muted); font-size: 15px; font-weight: 300; }
+
+  .section-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: var(--muted);
+    margin-bottom: 24px;
+    font-weight: 500;
+  }
+
+  .apps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 2px;
+    margin-bottom: 80px;
+    animation: fadeUp 0.6s ease 0.2s both;
+  }
+  .app-card {
+    background: var(--surface);
+    padding: 32px 28px;
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--text);
+    display: block;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.2s;
+    border: 1px solid transparent;
+  }
+  .app-card::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s ease;
+  }
+  .app-card:hover { background: var(--surface2); border-color: var(--border); }
+  .app-card:hover::after { transform: scaleX(1); }
+  .app-icon {
+    font-size: 32px;
+    margin-bottom: 20px;
+    display: block;
+  }
+  .app-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 26px;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+  }
+  .app-desc {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 300;
+    line-height: 1.5;
+  }
+  .app-arrow {
+    position: absolute;
+    top: 28px;
+    right: 28px;
+    color: var(--border);
+    font-size: 18px;
+    transition: color 0.2s, transform 0.2s;
+  }
+  .app-card:hover .app-arrow { color: var(--accent); transform: translate(2px, -2px); }
+
+  /* Stagger animation for cards */
+  .app-card:nth-child(1) { animation: fadeUp 0.5s ease 0.25s both; }
+  .app-card:nth-child(2) { animation: fadeUp 0.5s ease 0.3s both; }
+  .app-card:nth-child(3) { animation: fadeUp 0.5s ease 0.35s both; }
+  .app-card:nth-child(4) { animation: fadeUp 0.5s ease 0.4s both; }
+  .app-card:nth-child(5) { animation: fadeUp 0.5s ease 0.45s both; }
+  .app-card:nth-child(6) { animation: fadeUp 0.5s ease 0.5s both; }
+  .app-card:nth-child(7) { animation: fadeUp 0.5s ease 0.55s both; }
+
+  /* Accent color per app */
+  .app-card[data-color="blue"] .app-name { color: #5b9bd5; }
+  .app-card[data-color="green"] .app-name { color: #6abf69; }
+  .app-card[data-color="orange"] .app-name { color: #e8874a; }
+  .app-card[data-color="purple"] .app-name { color: #a78bfa; }
+  .app-card[data-color="red"] .app-name { color: #e85447; }
+  .app-card[data-color="cyan"] .app-name { color: #4adcd8; }
+  .app-card[data-color="yellow"] .app-name { color: var(--accent); }
+
+  .recent-docs { animation: fadeUp 0.6s ease 0.4s both; }
+  .doc-list { display: flex; flex-direction: column; gap: 1px; }
+  .doc-item {
+    display: flex;
+    align-items: center;
+    padding: 16px 20px;
+    background: var(--surface);
+    cursor: pointer;
+    transition: background 0.15s;
+    text-decoration: none;
+    color: var(--text);
+    gap: 16px;
+  }
+  .doc-item:hover { background: var(--surface2); }
+  .doc-item-icon { font-size: 18px; width: 28px; text-align: center; }
+  .doc-item-info { flex: 1; }
+  .doc-item-title { font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+  .doc-item-meta { font-size: 11px; color: var(--muted); }
+  .doc-item-arrow { color: var(--border); font-size: 14px; }
+  .no-docs { color: var(--muted); font-size: 14px; padding: 20px 0; font-weight: 300; }
+
+  .loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+  }
+  .loading-logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 52px;
+    letter-spacing: 6px;
+    color: var(--accent);
+    animation: pulse 1.2s ease infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div class="loading-overlay" id="loading">
+  <div class="loading-logo">FORGE</div>
+</div>
+
+<!-- Auth Screen -->
+<div id="auth-screen" style="display:none">
+  <div class="auth-box">
+    <div class="auth-logo">FORGE</div>
+    <div class="auth-tagline">Your unified workspace. Sign in to save your work.</div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="switchTab('login')">Sign In</button>
+      <button class="auth-tab" onclick="switchTab('signup')">Create Account</button>
+    </div>
+    <div id="auth-msg" class="auth-msg"></div>
+    <!-- Login -->
+    <div class="auth-form" id="login-form">
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="login-email" placeholder="you@example.com">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="login-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <button class="btn-primary" onclick="doLogin()">ENTER FORGE</button>
+    </div>
+    <!-- Signup -->
+    <div class="auth-form hidden" id="signup-form">
+      <div class="field">
+        <label>Full Name</label>
+        <input type="text" id="signup-name" placeholder="Your name">
+      </div>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="signup-email" placeholder="you@example.com">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="signup-pass" placeholder="Min 6 characters" onkeydown="if(event.key==='Enter')doSignup()">
+      </div>
+      <button class="btn-primary" onclick="doSignup()">CREATE ACCOUNT</button>
+    </div>
+    <!-- Guest -->
+    <div style="margin-top:20px;text-align:center;border-top:1px solid var(--border);padding-top:20px;">
+      <button onclick="enterAsGuest()" style="background:none;border:none;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;">Continue as Guest</button>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;font-weight:300;">No account needed — work won't be saved to the cloud</div>
+    </div>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="app-screen">
+  <nav class="topbar">
+    <div class="topbar-logo">FORGE</div>
+    <div class="topbar-user">
+      <span class="user-email" id="user-email-display"></span>
+      <button class="btn-ghost" id="auth-action-btn" onclick="doSignOut()">Sign Out</button>
+    </div>
+  </nav>
+  <div class="main-content">
+    <div class="greeting">
+      <h1 id="greeting-text">GOOD MORNING</h1>
+      <p>What are we building today?</p>
+    </div>
+
+    <div class="section-label">Applications</div>
+    <div class="apps-grid">
+      <a href="quill.html" class="app-card" data-color="blue">
+        <span class="app-icon">✍️</span>
+        <div class="app-name">Quill</div>
+        <div class="app-desc">Document writing & rich text editing</div>
+        <span class="app-arrow">↗</span>
+      </a>
+      <a href="grid.html" class="app-card" data-color="green">
+        <span class="app-icon">📊</span>
+        <div class="app-name">Grid</div>
+        <div class="app-desc">Spreadsheets, formulas & data tables</div>
+        <span class="app-arrow">↗</span>
+      </a>
+      <a href="stage.html" class="app-card" data-color="orange">
+        <span class="app-icon">🎭</span>
+        <div class="app-name">Stage</div>
+        <div class="app-desc">Presentations & slide decks</div>
+        <span class="app-arrow">↗</span>
+      </a>
+      <a href="memo.html" class="app-card" data-color="yellow">
+        <span class="app-icon">📝</span>
+        <div class="app-name">Memo</div>
+        <div class="app-desc">Notes, journals & quick capture</div>
+        <span class="app-arrow">↗</span>
+      </a>
+      <a href="tasks.html" class="app-card" data-color="cyan">
+        <span class="app-icon">✅</span>
+        <div class="app-name">Tasks</div>
+        <div class="app-desc">To-do lists & project tracking</div>
+        <span class="app-arrow">↗</span>
+      </a>
+      <a href="board.html" class="app-card" data-color="purple">
+        <span class="app-icon">🖌️</span>
+        <div class="app-name">Board</div>
+        <div class="app-desc">Infinite whiteboard & sketching</div>
+        <span class="app-arrow">↗</span>
+      </a>
+      <a href="canvas.html" class="app-card" data-color="red">
+        <span class="app-icon">🎨</span>
+        <div class="app-name">Canvas</div>
+        <div class="app-desc">Image editing & pixel art tools</div>
+        <span class="app-arrow">↗</span>
+      </a>
+    </div>
+
+    <div class="recent-docs">
+      <div class="section-label">Recent Documents</div>
+      <div class="doc-list" id="recent-list">
+        <div class="no-docs">Loading recent documents...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://jrhakmidckqpulfnksyt.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpyaGFrbWlkY2txcHVsZm5rc3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5NjQ5NzYsImV4cCI6MjA5NDU0MDk3Nn0.FhQEhpGhFw1NdcDtdNci1rbB4ATlB71rxuVp99Nv4mA';
+const { createClient } = supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const APP_ICONS = { quill:'✍️', grid:'📊', stage:'🎭', memo:'📝', tasks:'✅', board:'🖌️', canvas:'🎨' };
+const APP_NAMES = { quill:'Quill', grid:'Grid', stage:'Stage', memo:'Memo', tasks:'Tasks', board:'Board', canvas:'Canvas' };
+
+function setGreeting() {
+  const h = new Date().getHours();
+  const el = document.getElementById('greeting-text');
+  if (h < 12) el.textContent = 'GOOD MORNING';
+  else if (h < 17) el.textContent = 'GOOD AFTERNOON';
+  else el.textContent = 'GOOD EVENING';
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.auth-tab').forEach((t,i) => t.classList.toggle('active', (tab==='login'&&i===0)||(tab==='signup'&&i===1)));
+  document.getElementById('login-form').classList.toggle('hidden', tab !== 'login');
+  document.getElementById('signup-form').classList.toggle('hidden', tab !== 'signup');
+  document.getElementById('auth-msg').className = 'auth-msg';
+}
+
+function showMsg(msg, type='error') {
+  const el = document.getElementById('auth-msg');
+  el.textContent = msg;
+  el.className = 'auth-msg ' + type;
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value;
+  const pass = document.getElementById('login-pass').value;
+  if (!email || !pass) return showMsg('Please fill in all fields.');
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) return showMsg(error.message);
+  location.reload();
+}
+
+async function doSignup() {
+  const name = document.getElementById('signup-name').value;
+  const email = document.getElementById('signup-email').value;
+  const pass = document.getElementById('signup-pass').value;
+  if (!name || !email || !pass) return showMsg('Please fill in all fields.');
+  if (pass.length < 6) return showMsg('Password must be at least 6 characters.');
+  const { error } = await sb.auth.signUp({ email, password: pass, options: { data: { full_name: name } } });
+  if (error) return showMsg(error.message);
+  showMsg('Account created! Check your email to confirm, or sign in now.', 'success');
+}
+
+async function doSignOut() {
+  await sb.auth.signOut();
+  location.reload();
+}
+
+async function loadRecent(userId) {
+  const { data, error } = await sb.from('documents')
+    .select('*').eq('user_id', userId)
+    .order('updated_at', { ascending: false }).limit(8);
+  const list = document.getElementById('recent-list');
+  if (error || !data || data.length === 0) {
+    list.innerHTML = '<div class="no-docs">No recent documents. Open an app to get started.</div>';
+    return;
+  }
+  list.innerHTML = data.map(doc => {
+    const date = new Date(doc.updated_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+    return `<a href="${doc.app}.html?doc=${doc.id}" class="doc-item">
+      <span class="doc-item-icon">${APP_ICONS[doc.app]||'📄'}</span>
+      <div class="doc-item-info">
+        <div class="doc-item-title">${doc.title||'Untitled'}</div>
+        <div class="doc-item-meta">${APP_NAMES[doc.app]||doc.app} &middot; ${date}</div>
+      </div>
+      <span class="doc-item-arrow">→</span>
+    </a>`;
+  }).join('');
+}
+
+function enterAsGuest() {
+  sessionStorage.setItem('forge_guest', '1');
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app-screen').style.display = 'block';
+  document.getElementById('user-email-display').textContent = 'Guest';
+  document.getElementById('auth-action-btn').textContent = 'Sign In';
+  document.getElementById('auth-action-btn').onclick = () => { sessionStorage.removeItem('forge_guest'); location.reload(); };
+  setGreeting();
+  document.getElementById('recent-list').innerHTML = '<div class="no-docs">Sign in to see your saved documents.</div>';
+}
+
+async function init() {
+  const { data: { user } } = await sb.auth.getUser();
+  document.getElementById('loading').style.display = 'none';
+  if (!user) {
+    if (sessionStorage.getItem('forge_guest')) {
+      enterAsGuest();
+      return;
+    }
+    document.getElementById('auth-screen').style.display = 'flex';
+    return;
+  }
+  document.getElementById('app-screen').style.display = 'block';
+  document.getElementById('user-email-display').textContent = user.email;
+  setGreeting();
+  await loadRecent(user.id);
+}
+
+init();
+</script>
+</body>
+</html>
