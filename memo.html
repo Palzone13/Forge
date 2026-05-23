@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memo — Forge</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root { --bg:#0a0a0a; --surface:#111; --surface2:#1a1a1a; --border:#2a2a2a; --text:#f0ece4; --muted:#666; --accent:#e8c547; --radius:4px; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+  
+  .topbar { display:flex; align-items:center; gap:16px; padding:0 20px; height:52px; border-bottom:1px solid var(--border); background:var(--surface); flex-shrink:0; }
+  .home-link { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:3px; color:var(--accent); text-decoration:none; }
+  .home-link:hover { opacity:0.7; }
+  .app-name { font-size:13px; color:var(--muted); }
+  .divider { width:1px; height:20px; background:var(--border); }
+  .save-status { font-size:12px; color:var(--muted); margin-left:auto; }
+  .btn { padding:7px 16px; border:1px solid var(--border); background:none; color:var(--text); font-family:'DM Sans',sans-serif; font-size:12px; cursor:pointer; border-radius:var(--radius); transition:all 0.2s; font-weight:500; }
+  .btn:hover { border-color:var(--accent); color:var(--accent); }
+
+  /* Layout */
+  .memo-layout { display:flex; flex:1; overflow:hidden; }
+
+  /* Notes list */
+  .notes-panel { width:260px; background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+  .notes-header { padding:16px; border-bottom:1px solid var(--border); }
+  .search-input { width:100%; padding:8px 12px; background:var(--surface2); border:1px solid var(--border); color:var(--text); font-family:'DM Sans',sans-serif; font-size:13px; border-radius:var(--radius); outline:none; margin-bottom:12px; }
+  .search-input:focus { border-color:var(--accent); }
+  .notes-actions { display:flex; gap:8px; }
+  .btn-new-note { flex:1; padding:8px; background:var(--accent); border:none; color:#000; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; cursor:pointer; border-radius:var(--radius); }
+  .notes-list { flex:1; overflow-y:auto; }
+  .notes-list::-webkit-scrollbar { width:4px; }
+  .notes-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+  .note-item { padding:14px 16px; border-bottom:1px solid var(--border); cursor:pointer; transition:background 0.15s; position:relative; }
+  .note-item:hover { background:var(--surface2); }
+  .note-item.active { background:rgba(232,197,71,0.08); border-left:3px solid var(--accent); }
+  .note-item-title { font-size:13px; font-weight:600; margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .note-item-preview { font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:4px; }
+  .note-item-meta { display:flex; align-items:center; justify-content:space-between; }
+  .note-item-date { font-size:10px; color:var(--muted); }
+  .note-item-tag { font-size:10px; padding:1px 6px; background:rgba(232,197,71,0.15); color:var(--accent); border-radius:10px; }
+  .note-item-del { background:none; border:none; color:var(--muted); cursor:pointer; opacity:0; font-size:12px; padding:0 2px; }
+  .note-item:hover .note-item-del { opacity:1; }
+  .note-item-del:hover { color:#e85447; }
+  .no-notes { font-size:13px; color:var(--muted); padding:24px 16px; text-align:center; line-height:1.6; }
+
+  /* Editor */
+  .note-editor { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+  .note-meta-bar { display:flex; align-items:center; gap:12px; padding:12px 32px; border-bottom:1px solid var(--border); background:var(--surface); flex-shrink:0; }
+  .note-title-input { flex:1; background:none; border:none; color:var(--text); font-family:'Crimson Pro',serif; font-size:22px; font-weight:600; outline:none; }
+  .note-title-input::placeholder { color:var(--muted); }
+  .tag-input { padding:5px 10px; background:var(--surface2); border:1px solid var(--border); color:var(--text); font-family:'DM Sans',sans-serif; font-size:12px; border-radius:20px; outline:none; width:120px; }
+  .tag-input:focus { border-color:var(--accent); }
+  .note-body { flex:1; padding:32px; overflow-y:auto; background:var(--bg); }
+  .note-body::-webkit-scrollbar { width:6px; }
+  .note-body::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+  #note-content { min-height:100%; outline:none; font-family:'Crimson Pro',serif; font-size:18px; line-height:1.9; color:var(--text); caret-color:var(--accent); max-width:700px; margin:0 auto; }
+  #note-content h1 { font-family:'Bebas Neue',sans-serif; font-size:36px; letter-spacing:2px; color:var(--accent); margin-bottom:12px; }
+  #note-content h2 { font-family:'DM Sans',sans-serif; font-size:20px; font-weight:600; margin:20px 0 10px; color:var(--text); }
+  #note-content blockquote { border-left:3px solid var(--accent); margin:16px 0; padding:8px 16px; opacity:0.8; font-style:italic; }
+  #note-content code { font-family:monospace; background:var(--surface2); padding:2px 6px; border-radius:3px; font-size:14px; color:var(--accent); }
+  #note-content ul, #note-content ol { margin-left:24px; margin-bottom:12px; }
+  #note-content li { margin-bottom:6px; }
+  #note-content p { margin-bottom:10px; }
+  #note-content hr { border:none; border-top:1px solid var(--border); margin:20px 0; }
+  .empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:var(--muted); text-align:center; gap:12px; }
+  .empty-state-icon { font-size:48px; opacity:0.3; }
+  .empty-state-text { font-size:15px; font-weight:300; }
+
+  /* Toolbar */
+  .note-toolbar { display:flex; gap:2px; padding:6px 32px; border-bottom:1px solid var(--border); background:var(--surface); flex-shrink:0; }
+  .t-btn { padding:4px 8px; background:none; border:1px solid transparent; color:var(--muted); font-size:12px; cursor:pointer; border-radius:3px; font-family:'DM Sans',sans-serif; }
+  .t-btn:hover { color:var(--text); background:var(--surface2); }
+
+  /* Guest banner */
+  .guest-banner {
+    display:none; align-items:center; justify-content:space-between;
+    padding:10px 24px; background:rgba(232,197,71,0.1);
+    border-bottom:1px solid rgba(232,197,71,0.25); flex-shrink:0;
+  }
+  .guest-banner.visible { display:flex; }
+  .guest-banner-text { font-size:13px; color:var(--accent,#e8c547); font-weight:400; }
+  .guest-banner-text span { opacity:0.7; font-weight:300; margin-left:8px; font-size:12px; }
+  .guest-sign-in { padding:6px 16px; background:var(--accent,#e8c547); border:none; color:#000; font-family:'DM Sans',sans-serif; font-size:12px; font-weight:600; cursor:pointer; border-radius:4px; }
+  .guest-sign-in:hover { opacity:0.85; }
+
+</style>
+</head>
+<body>
+
+<div class="guest-banner" id="guest-banner">
+  <div class="guest-banner-text">
+    ⚡ You're using Forge as a guest
+    <span>Your work won't be saved to the cloud</span>
+  </div>
+  <button class="guest-sign-in" onclick="window.location.href='index.html'">Sign In to Save</button>
+</div>
+
+<div class="topbar">
+  <a href="index.html" class="home-link">FORGE</a>
+  <div class="divider"></div>
+  <span class="app-name">Memo</span>
+  <span class="save-status" id="save-status"></span>
+</div>
+
+<div class="memo-layout">
+  <div class="notes-panel">
+    <div class="notes-header">
+      <input class="search-input" id="search-input" placeholder="🔍 Search notes..." oninput="filterNotes(this.value)">
+      <div class="notes-actions">
+        <button class="btn-new-note" onclick="newNote()">+ New Note</button>
+      </div>
+    </div>
+    <div class="notes-list" id="notes-list">
+      <div class="no-notes">Loading...</div>
+    </div>
+  </div>
+
+  <div class="note-editor" id="note-editor-panel">
+    <div class="empty-state" id="empty-state">
+      <div class="empty-state-icon">📝</div>
+      <div class="empty-state-text">Select a note or create a new one</div>
+      <button class="btn" onclick="newNote()" style="margin-top:8px;">+ New Note</button>
+    </div>
+    <div id="editor-content" style="display:none; flex-direction:column; flex:1; overflow:hidden; display:flex;">
+      <div class="note-meta-bar">
+        <input class="note-title-input" id="note-title" placeholder="Note title..." oninput="scheduleAutoSave()">
+        <input class="tag-input" id="note-tag" placeholder="tag..." oninput="scheduleAutoSave()">
+      </div>
+      <div class="note-toolbar">
+        <button class="t-btn" onclick="execFmt('bold')"><b>B</b></button>
+        <button class="t-btn" onclick="execFmt('italic')"><i>I</i></button>
+        <button class="t-btn" onclick="execFmt('underline')"><u>U</u></button>
+        <button class="t-btn" onclick="execFmt('formatBlock','h1')">H1</button>
+        <button class="t-btn" onclick="execFmt('formatBlock','h2')">H2</button>
+        <button class="t-btn" onclick="execFmt('insertUnorderedList')">• List</button>
+        <button class="t-btn" onclick="execFmt('insertOrderedList')">1. List</button>
+        <button class="t-btn" onclick="execFmt('formatBlock','blockquote')">" Quote</button>
+        <button class="t-btn" onclick="execFmt('insertHorizontalRule')">—</button>
+        <button class="t-btn" onclick="execFmt('undo')">↩</button>
+      </div>
+      <div class="note-body">
+        <div id="note-content" contenteditable="true" spellcheck="true"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://jrhakmidckqpulfnksyt.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpyaGFrbWlkY2txcHVsZm5rc3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5NjQ5NzYsImV4cCI6MjA5NDU0MDk3Nn0.FhQEhpGhFw1NdcDtdNci1rbB4ATlB71rxuVp99Nv4mA';
+const {createClient}=supabase; const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+
+let notes=[], currentNoteId=null, currentUser=null, autoSaveTimer=null;
+
+function execFmt(cmd,val=null) { document.execCommand(cmd,false,val); document.getElementById('note-content').focus(); scheduleAutoSave(); }
+function setStatus(msg,color='var(--muted)') { const el=document.getElementById('save-status'); el.textContent=msg; el.style.color=color; }
+
+function scheduleAutoSave() { clearTimeout(autoSaveTimer); setStatus('Unsaved...','#e8874a'); autoSaveTimer=setTimeout(saveNote,2000); }
+
+function newNote() {
+  currentNoteId=null;
+  document.getElementById('note-title').value='';
+  document.getElementById('note-tag').value='';
+  document.getElementById('note-content').innerHTML='';
+  document.getElementById('empty-state').style.display='none';
+  document.getElementById('editor-content').style.display='flex';
+  document.getElementById('note-title').focus();
+  document.querySelectorAll('.note-item').forEach(el=>el.classList.remove('active'));
+}
+
+function showNote(note) {
+  currentNoteId=note.id;
+  document.getElementById('note-title').value=note.title||'';
+  document.getElementById('note-tag').value=note.tag||'';
+  document.getElementById('note-content').innerHTML=note.content||'';
+  document.getElementById('empty-state').style.display='none';
+  document.getElementById('editor-content').style.display='flex';
+  document.querySelectorAll('.note-item').forEach(el=>el.classList.toggle('active',el.dataset.id===note.id));
+  setStatus('');
+}
+
+async function saveNote() {
+  if(!currentUser) { guestSaveCheck(); return; }
+  const title=document.getElementById('note-title').value||'Untitled Note';
+  const tag=document.getElementById('note-tag').value;
+  const content=document.getElementById('note-content').innerHTML;
+  const preview=document.getElementById('note-content').textContent.substring(0,80);
+  setStatus('Saving...');
+  const payload={user_id:currentUser.id,app:'memo',title,content:JSON.stringify({html:content,tag,preview}),updated_at:new Date().toISOString()};
+  let result;
+  if(currentNoteId) { const{data}=await sb.from('documents').update(payload).eq('id',currentNoteId).select().single(); result=data; }
+  else { const{data}=await sb.from('documents').insert(payload).select().single(); result=data; if(result)currentNoteId=result.id; }
+  if(result) { setStatus('Saved ✓','var(--accent)'); await loadNotes(); } else setStatus('Save failed','#e85447');
+}
+
+async function deleteNote(id) {
+  if(!confirm('Delete this note?')) return;
+  await sb.from('documents').delete().eq('id',id);
+  if(id===currentNoteId) { currentNoteId=null; document.getElementById('empty-state').style.display='flex'; document.getElementById('editor-content').style.display='none'; }
+  await loadNotes();
+}
+
+function filterNotes(q) {
+  document.querySelectorAll('.note-item').forEach(el=>{
+    const title=el.querySelector('.note-item-title').textContent.toLowerCase();
+    const preview=el.querySelector('.note-item-preview').textContent.toLowerCase();
+    el.style.display=(title.includes(q.toLowerCase())||preview.includes(q.toLowerCase()))?'':'none';
+  });
+}
+
+async function loadNotes() {
+  const{data}=await sb.from('documents').select('*').eq('user_id',currentUser.id).eq('app','memo').order('updated_at',{ascending:false});
+  notes=data||[];
+  const list=document.getElementById('notes-list');
+  if(!notes.length) { list.innerHTML='<div class="no-notes">No notes yet.<br>Click New Note to get started.</div>'; return; }
+  list.innerHTML=notes.map(note=>{
+    let tag='',preview='';
+    try { const p=JSON.parse(note.content||'{}'); tag=p.tag||''; preview=p.preview||''; } catch(e){}
+    return `<div class="note-item ${note.id===currentNoteId?'active':''}" data-id="${note.id}" onclick="showNoteById('${note.id}')">
+      <div class="note-item-title">${note.title||'Untitled'}</div>
+      <div class="note-item-preview">${preview||'Empty note'}</div>
+      <div class="note-item-meta">
+        <span class="note-item-date">${new Date(note.updated_at).toLocaleDateString()}</span>
+        ${tag?`<span class="note-item-tag">${tag}</span>`:''}
+        <button class="note-item-del" onclick="event.stopPropagation();deleteNote('${note.id}')">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showNoteById(id) {
+  const note=notes.find(n=>n.id===id);
+  if(!note) return;
+  let html='',tag='';
+  try { const p=JSON.parse(note.content||'{}'); html=p.html||''; tag=p.tag||''; } catch(e){html=note.content||'';}
+  showNote({...note,content:html,tag});
+}
+
+async function init() {
+  const{data:{user}}=await sb.auth.getUser();
+  const isGuest=!user;
+  if(!user && !sessionStorage.getItem('forge_guest')){window.location.href='index.html';return;}
+  currentUser=user||null;
+  if(isGuest){document.getElementById('guest-banner').classList.add('visible');}
+  await loadNotes();
+  const params=new URLSearchParams(location.search);
+  if(params.get('doc')) showNoteById(params.get('doc'));
+  document.getElementById('note-content').addEventListener('input',scheduleAutoSave);
+}
+
+init();
+// Guest save interception
+function guestSaveCheck() {
+  if (!currentUser) {
+    if (confirm('You\'re using Forge as a guest. Sign in to save your work to the cloud.\n\nGo to sign in?')) {
+      window.location.href = 'index.html';
+    }
+    return false;
+  }
+  return true;
+}
+
+</script>
+</body>
+</html>
