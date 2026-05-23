@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tasks — Forge</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root { --bg:#0a0a0a; --surface:#111; --surface2:#1a1a1a; --border:#2a2a2a; --text:#f0ece4; --muted:#666; --accent:#4adcd8; --danger:#e85447; --radius:4px; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; min-height:100vh; display:flex; flex-direction:column; }
+  
+  .topbar { display:flex; align-items:center; gap:16px; padding:0 24px; height:52px; border-bottom:1px solid var(--border); background:var(--surface); position:sticky; top:0; z-index:100; }
+  .home-link { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:3px; color:var(--accent); text-decoration:none; }
+  .home-link:hover { opacity:0.7; }
+  .app-name { font-size:13px; color:var(--muted); }
+  .divider { width:1px; height:20px; background:var(--border); }
+  .save-status { font-size:12px; color:var(--muted); margin-left:auto; }
+
+  .main { display:flex; flex:1; overflow:hidden; height:calc(100vh - 52px); }
+
+  /* Lists panel */
+  .lists-panel { width:220px; background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+  .lists-header { padding:16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .panel-title { font-size:11px; text-transform:uppercase; letter-spacing:2px; color:var(--muted); font-weight:500; }
+  .btn-add-list { width:22px; height:22px; background:var(--accent); border:none; color:#000; border-radius:var(--radius); cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; font-weight:bold; }
+  .lists-scroll { flex:1; overflow-y:auto; padding:8px; }
+  .list-item { padding:10px 12px; border-radius:var(--radius); cursor:pointer; border:1px solid transparent; margin-bottom:2px; display:flex; align-items:center; gap:8px; transition:background 0.15s; position:relative; }
+  .list-item:hover { background:var(--surface2); }
+  .list-item.active { background:rgba(74,220,216,0.08); border-color:rgba(74,220,216,0.25); }
+  .list-color { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .list-name { font-size:13px; font-weight:500; flex:1; }
+  .list-count { font-size:11px; color:var(--muted); background:var(--surface2); padding:1px 6px; border-radius:10px; }
+  .list-del { position:absolute; right:8px; background:none; border:none; color:var(--muted); cursor:pointer; opacity:0; font-size:12px; }
+  .list-item:hover .list-del { opacity:1; }
+  .list-del:hover { color:var(--danger); }
+
+  /* Task area */
+  .task-area { flex:1; overflow-y:auto; display:flex; flex-direction:column; }
+  .task-area::-webkit-scrollbar { width:6px; }
+  .task-area::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+  .task-area-header { padding:32px 40px 20px; display:flex; align-items:flex-end; gap:16px; border-bottom:1px solid var(--border); background:var(--bg); position:sticky; top:0; z-index:5; }
+  .list-title-big { font-family:'Bebas Neue',sans-serif; font-size:48px; letter-spacing:2px; flex:1; }
+  .task-stats { font-size:13px; color:var(--muted); font-weight:300; padding-bottom:8px; }
+  .filter-btns { display:flex; gap:4px; padding-bottom:4px; }
+  .filter-btn { padding:5px 12px; background:none; border:1px solid var(--border); color:var(--muted); font-family:'DM Sans',sans-serif; font-size:11px; cursor:pointer; border-radius:20px; transition:all 0.15s; font-weight:500; text-transform:uppercase; letter-spacing:0.5px; }
+  .filter-btn.active { background:var(--accent); border-color:var(--accent); color:#000; }
+
+  /* Add task */
+  .add-task-bar { padding:20px 40px; border-bottom:1px solid var(--border); display:flex; gap:12px; background:var(--bg); }
+  .task-input { flex:1; padding:12px 16px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-family:'DM Sans',sans-serif; font-size:14px; border-radius:var(--radius); outline:none; transition:border-color 0.2s; }
+  .task-input:focus { border-color:var(--accent); }
+  .priority-select { padding:12px 10px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-family:'DM Sans',sans-serif; font-size:13px; border-radius:var(--radius); cursor:pointer; outline:none; }
+  .due-input { padding:12px 10px; background:var(--surface); border:1px solid var(--border); color:var(--text); font-family:'DM Sans',sans-serif; font-size:13px; border-radius:var(--radius); outline:none; width:140px; }
+  .btn-add-task { padding:12px 20px; background:var(--accent); border:none; color:#000; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:600; cursor:pointer; border-radius:var(--radius); white-space:nowrap; }
+  .btn-add-task:hover { opacity:0.85; }
+
+  /* Tasks */
+  .tasks-list { padding:16px 40px; flex:1; }
+  .task-group-label { font-size:11px; text-transform:uppercase; letter-spacing:2px; color:var(--muted); margin:20px 0 10px; font-weight:500; }
+  .task-row { display:flex; align-items:center; gap:14px; padding:14px 16px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); margin-bottom:4px; transition:background 0.15s; position:relative; }
+  .task-row:hover { background:var(--surface2); }
+  .task-row.done { opacity:0.5; }
+  .task-check { width:18px; height:18px; border-radius:50%; border:2px solid var(--border); background:none; cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center; transition:all 0.2s; }
+  .task-check:hover { border-color:var(--accent); }
+  .task-check.checked { background:var(--accent); border-color:var(--accent); color:#000; font-size:11px; }
+  .task-text { flex:1; font-size:14px; }
+  .task-row.done .task-text { text-decoration:line-through; }
+  .priority-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+  .p-high { background:#e85447; }
+  .p-medium { background:#e8874a; }
+  .p-low { background:#6abf69; }
+  .task-due { font-size:11px; color:var(--muted); }
+  .task-due.overdue { color:#e85447; }
+  .task-edit-btn { background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; opacity:0; }
+  .task-row:hover .task-edit-btn { opacity:1; }
+  .task-del-btn { background:none; border:none; color:var(--muted); cursor:pointer; font-size:12px; opacity:0; }
+  .task-row:hover .task-del-btn { opacity:1; }
+  .task-del-btn:hover { color:var(--danger); }
+  .no-tasks { font-size:14px; color:var(--muted); padding:32px 0; text-align:center; font-weight:300; }
+  .progress-bar { height:3px; background:var(--border); margin:16px 40px; border-radius:2px; }
+  .progress-fill { height:100%; background:var(--accent); border-radius:2px; transition:width 0.3s ease; }
+
+  /* Guest banner */
+  .guest-banner {
+    display:none; align-items:center; justify-content:space-between;
+    padding:10px 24px; background:rgba(232,197,71,0.1);
+    border-bottom:1px solid rgba(232,197,71,0.25); flex-shrink:0;
+  }
+  .guest-banner.visible { display:flex; }
+  .guest-banner-text { font-size:13px; color:var(--accent,#e8c547); font-weight:400; }
+  .guest-banner-text span { opacity:0.7; font-weight:300; margin-left:8px; font-size:12px; }
+  .guest-sign-in { padding:6px 16px; background:var(--accent,#e8c547); border:none; color:#000; font-family:'DM Sans',sans-serif; font-size:12px; font-weight:600; cursor:pointer; border-radius:4px; }
+  .guest-sign-in:hover { opacity:0.85; }
+
+</style>
+</head>
+<body>
+
+<div class="guest-banner" id="guest-banner">
+  <div class="guest-banner-text">
+    ⚡ You're using Forge as a guest
+    <span>Your work won't be saved to the cloud</span>
+  </div>
+  <button class="guest-sign-in" onclick="window.location.href='index.html'">Sign In to Save</button>
+</div>
+
+<div class="topbar">
+  <a href="index.html" class="home-link">FORGE</a>
+  <div class="divider"></div>
+  <span class="app-name">Tasks</span>
+  <span class="save-status" id="save-status"></span>
+</div>
+
+<div class="main">
+  <div class="lists-panel">
+    <div class="lists-header">
+      <span class="panel-title">My Lists</span>
+      <button class="btn-add-list" onclick="addList()">+</button>
+    </div>
+    <div class="lists-scroll" id="lists-scroll"></div>
+  </div>
+
+  <div class="task-area">
+    <div class="task-area-header">
+      <div>
+        <div class="list-title-big" id="list-title-big" style="color:var(--accent)">TASKS</div>
+        <div class="task-stats" id="task-stats"></div>
+      </div>
+      <div>
+        <div class="filter-btns">
+          <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+          <button class="filter-btn" onclick="setFilter('active',this)">Active</button>
+          <button class="filter-btn" onclick="setFilter('done',this)">Done</button>
+        </div>
+      </div>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    <div class="add-task-bar">
+      <input class="task-input" id="task-input" placeholder="Add a new task..." onkeydown="if(event.key==='Enter')addTask()">
+      <select class="priority-select" id="task-priority">
+        <option value="low">Low</option>
+        <option value="medium" selected>Medium</option>
+        <option value="high">High !</option>
+      </select>
+      <input class="due-input" type="date" id="task-due" title="Due date">
+      <button class="btn-add-task" onclick="addTask()">+ Add Task</button>
+    </div>
+    <div class="tasks-list" id="tasks-list"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://jrhakmidckqpulfnksyt.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpyaGFrbWlkY2txcHVsZm5rc3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5NjQ5NzYsImV4cCI6MjA5NDU0MDk3Nn0.FhQEhpGhFw1NdcDtdNci1rbB4ATlB71rxuVp99Nv4mA';
+const {createClient}=supabase; const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+
+const LIST_COLORS=['#4adcd8','#e8874a','#a78bfa','#6abf69','#e85447','#e8c547','#5b9bd5'];
+let lists=[{id:'default',name:'My Tasks',color:'#4adcd8',tasks:[]}];
+let currentListId='default', currentFilter='all', currentUser=null;
+let saveTimer=null;
+
+function setStatus(msg,color='var(--muted)') { const el=document.getElementById('save-status'); el.textContent=msg; el.style.color=color; }
+function scheduleSave() { clearTimeout(saveTimer); setStatus('Saving...'); saveTimer=setTimeout(saveAll,1500); }
+
+function currentList() { return lists.find(l=>l.id===currentListId)||lists[0]; }
+
+function addList() {
+  const name=prompt('List name:'); if(!name) return;
+  const color=LIST_COLORS[lists.length%LIST_COLORS.length];
+  lists.push({id:'list_'+Date.now(),name,color,tasks:[]});
+  currentListId=lists[lists.length-1].id;
+  renderLists(); renderTasks(); scheduleSave();
+}
+
+function deleteList(id) {
+  if(lists.length<=1){alert('Cannot delete last list.');return;}
+  if(!confirm('Delete list and all its tasks?')) return;
+  lists=lists.filter(l=>l.id!==id);
+  if(currentListId===id) currentListId=lists[0].id;
+  renderLists(); renderTasks(); scheduleSave();
+}
+
+function switchList(id) { currentListId=id; renderLists(); renderTasks(); }
+
+function setFilter(f, btn) {
+  currentFilter=f;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTasks();
+}
+
+function addTask() {
+  const input=document.getElementById('task-input');
+  const text=input.value.trim(); if(!text) return;
+  const priority=document.getElementById('task-priority').value;
+  const due=document.getElementById('task-due').value;
+  currentList().tasks.unshift({ id:'t_'+Date.now(), text, done:false, priority, due, created:new Date().toISOString() });
+  input.value=''; document.getElementById('task-due').value='';
+  renderTasks(); scheduleSave();
+}
+
+function toggleTask(listId, taskId) {
+  const list=lists.find(l=>l.id===listId);
+  if(!list) return;
+  const task=list.tasks.find(t=>t.id===taskId);
+  if(task) task.done=!task.done;
+  renderTasks(); scheduleSave();
+}
+
+function deleteTask(listId, taskId) {
+  const list=lists.find(l=>l.id===listId);
+  if(!list) return;
+  list.tasks=list.tasks.filter(t=>t.id!==taskId);
+  renderTasks(); scheduleSave();
+}
+
+function editTask(listId, taskId) {
+  const list=lists.find(l=>l.id===listId);
+  const task=list.tasks.find(t=>t.id===taskId);
+  if(!task) return;
+  const newText=prompt('Edit task:', task.text);
+  if(newText!==null) { task.text=newText; renderTasks(); scheduleSave(); }
+}
+
+function renderLists() {
+  const scroll=document.getElementById('lists-scroll');
+  scroll.innerHTML=lists.map(l=>{
+    const done=l.tasks.filter(t=>t.done).length;
+    const total=l.tasks.length;
+    return `<div class="list-item ${l.id===currentListId?'active':''}" onclick="switchList('${l.id}')">
+      <div class="list-color" style="background:${l.color}"></div>
+      <span class="list-name">${l.name}</span>
+      <span class="list-count">${total-done}</span>
+      ${lists.length>1?`<button class="list-del" onclick="event.stopPropagation();deleteList('${l.id}')">✕</button>`:''}
+    </div>`;
+  }).join('');
+}
+
+function renderTasks() {
+  const list=currentList();
+  document.getElementById('list-title-big').textContent=list.name.toUpperCase();
+  document.getElementById('list-title-big').style.color=list.color;
+  let tasks=list.tasks;
+  if(currentFilter==='active') tasks=tasks.filter(t=>!t.done);
+  else if(currentFilter==='done') tasks=tasks.filter(t=>t.done);
+  const total=list.tasks.length, done=list.tasks.filter(t=>t.done).length;
+  document.getElementById('task-stats').textContent=`${done} of ${total} completed`;
+  document.getElementById('progress-fill').style.width=total?(done/total*100)+'%':'0%';
+  const today=new Date().toISOString().split('T')[0];
+  const overdue=tasks.filter(t=>!t.done&&t.due&&t.due<today);
+  const active=tasks.filter(t=>!t.done&&(!t.due||t.due>=today));
+  const doneT=tasks.filter(t=>t.done);
+  let html='';
+  if(overdue.length&&currentFilter!=='done') { html+=`<div class="task-group-label" style="color:#e85447">⚠ Overdue</div>`+renderTaskList(overdue); }
+  if(active.length&&currentFilter!=='done') html+=`<div class="task-group-label">Active</div>`+renderTaskList(active);
+  if(doneT.length&&currentFilter!=='active') html+=`<div class="task-group-label">Completed</div>`+renderTaskList(doneT);
+  if(!tasks.length) html='<div class="no-tasks">No tasks here. Add one above!</div>';
+  document.getElementById('tasks-list').innerHTML=html;
+}
+
+function renderTaskList(tasks) {
+  return tasks.map(t=>{
+    const today=new Date().toISOString().split('T')[0];
+    const isOverdue=t.due&&t.due<today&&!t.done;
+    return `<div class="task-row ${t.done?'done':''}">
+      <button class="task-check ${t.done?'checked':''}" onclick="toggleTask('${currentListId}','${t.id}')">${t.done?'✓':''}</button>
+      <div class="priority-dot p-${t.priority}"></div>
+      <span class="task-text">${t.text}</span>
+      ${t.due?`<span class="task-due ${isOverdue?'overdue':''}">${t.due}</span>`:''}
+      <button class="task-edit-btn" onclick="editTask('${currentListId}','${t.id}')">✎</button>
+      <button class="task-del-btn" onclick="deleteTask('${currentListId}','${t.id}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+async function saveAll() {
+  if(!currentUser) { guestSaveCheck(); return; }
+  const content=JSON.stringify(lists);
+  const{data}=await sb.from('documents').select('id').eq('user_id',currentUser.id).eq('app','tasks').limit(1);
+  const payload={user_id:currentUser.id,app:'tasks',title:'My Tasks',content,updated_at:new Date().toISOString()};
+  if(data&&data.length) { await sb.from('documents').update(payload).eq('id',data[0].id); }
+  else { await sb.from('documents').insert(payload); }
+  setStatus('Saved ✓','var(--accent)');
+}
+
+async function init() {
+  const{data:{user}}=await sb.auth.getUser();
+  const isGuest=!user;
+  if(!user && !sessionStorage.getItem('forge_guest')){window.location.href='index.html';return;}
+  currentUser=user||null;
+  if(isGuest){document.getElementById('guest-banner').classList.add('visible');}
+  const{data}=await sb.from('documents').select('*').eq('user_id',user.id).eq('app','tasks').limit(1);
+  if(data&&data.length) { try{lists=JSON.parse(data[0].content||'[]');}catch(e){} }
+  if(!lists||!lists.length) lists=[{id:'default',name:'My Tasks',color:'#4adcd8',tasks:[]}];
+  currentListId=lists[0].id;
+  renderLists(); renderTasks();
+}
+init();
+// Guest save interception
+function guestSaveCheck() {
+  if (!currentUser) {
+    if (confirm('You\'re using Forge as a guest. Sign in to save your work to the cloud.\n\nGo to sign in?')) {
+      window.location.href = 'index.html';
+    }
+    return false;
+  }
+  return true;
+}
+
+</script>
+</body>
+</html>
