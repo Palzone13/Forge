@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Board — Forge</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root { --bg:#0a0a0a; --surface:#111; --surface2:#1a1a1a; --border:#2a2a2a; --text:#f0ece4; --muted:#666; --accent:#a78bfa; --radius:4px; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+
+  .topbar { display:flex; align-items:center; gap:12px; padding:0 16px; height:52px; border-bottom:1px solid var(--border); background:var(--surface); flex-shrink:0; z-index:10; }
+  .home-link { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:3px; color:var(--accent); text-decoration:none; }
+  .home-link:hover { opacity:0.7; }
+  .app-name { font-size:13px; color:var(--muted); }
+  .divider { width:1px; height:20px; background:var(--border); }
+  .board-title { flex:1; background:none; border:none; color:var(--text); font-family:'DM Sans',sans-serif; font-size:14px; font-weight:500; outline:none; padding:4px 8px; border-radius:var(--radius); }
+  .board-title:hover, .board-title:focus { background:var(--surface2); }
+  .save-status { font-size:12px; color:var(--muted); }
+  .btn { padding:7px 14px; border:1px solid var(--border); background:none; color:var(--text); font-family:'DM Sans',sans-serif; font-size:12px; cursor:pointer; border-radius:var(--radius); transition:all 0.2s; font-weight:500; }
+  .btn:hover { border-color:var(--accent); color:var(--accent); }
+  .btn-accent { background:var(--accent); border-color:var(--accent); color:#000; }
+  .btn-accent:hover { opacity:0.85; color:#000; }
+
+  /* Toolbar */
+  .toolbar {
+    position:absolute; left:16px; top:50%; transform:translateY(-50%);
+    display:flex; flex-direction:column; gap:4px; z-index:20;
+    background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:8px 6px;
+  }
+  .tool-btn {
+    width:36px; height:36px; background:none; border:1px solid transparent; color:var(--text);
+    font-size:16px; cursor:pointer; border-radius:6px; transition:all 0.15s; display:flex; align-items:center; justify-content:center;
+  }
+  .tool-btn:hover { background:var(--surface2); border-color:var(--border); }
+  .tool-btn.active { background:rgba(167,139,250,0.15); border-color:var(--accent); }
+  .tool-sep { height:1px; background:var(--border); margin:2px 0; }
+
+  /* Color picker */
+  .color-strip {
+    position:absolute; left:64px; top:50%; transform:translateY(-50%);
+    display:flex; flex-direction:column; gap:4px; z-index:20;
+    background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:8px 6px;
+  }
+  .color-dot {
+    width:22px; height:22px; border-radius:50%; cursor:pointer; border:2px solid transparent;
+    transition:transform 0.15s, border-color 0.15s;
+  }
+  .color-dot:hover { transform:scale(1.2); }
+  .color-dot.active { border-color:#fff; }
+
+  /* Size picker */
+  .size-strip {
+    position:absolute; left:104px; top:50%; transform:translateY(-50%);
+    display:flex; flex-direction:column; gap:6px; z-index:20;
+    background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:10px 8px; align-items:center;
+  }
+  .size-dot { border-radius:50%; background:var(--text); cursor:pointer; border:2px solid transparent; transition:all 0.15s; }
+  .size-dot:hover { border-color:var(--accent); }
+  .size-dot.active { border-color:var(--accent); }
+
+  /* Boards sidebar */
+  .boards-panel {
+    position:absolute; right:0; top:0; bottom:0; width:200px;
+    background:var(--surface); border-left:1px solid var(--border); z-index:20;
+    display:flex; flex-direction:column;
+  }
+  .boards-header { padding:12px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .panel-title { font-size:11px; text-transform:uppercase; letter-spacing:2px; color:var(--muted); font-weight:500; }
+  .btn-new-board { width:22px; height:22px; background:var(--accent); border:none; color:#000; border-radius:var(--radius); cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; font-weight:bold; }
+  .boards-list { flex:1; overflow-y:auto; padding:6px; }
+  .board-item { padding:8px 10px; border-radius:var(--radius); cursor:pointer; border:1px solid transparent; margin-bottom:2px; position:relative; }
+  .board-item:hover { background:var(--surface2); }
+  .board-item.active { background:rgba(167,139,250,0.1); border-color:rgba(167,139,250,0.3); }
+  .board-item-title { font-size:12px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
+  .board-item-date { font-size:10px; color:var(--muted); }
+  .board-item-del { position:absolute; right:6px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); cursor:pointer; opacity:0; font-size:12px; }
+  .board-item:hover .board-item-del { opacity:1; }
+  .board-item-del:hover { color:#e85447; }
+  .no-boards { font-size:12px; color:var(--muted); padding:12px; text-align:center; line-height:1.6; }
+
+  /* Canvas */
+  .canvas-wrap { flex:1; position:relative; overflow:hidden; }
+  canvas { display:block; width:100%; height:100%; touch-action:none; }
+
+  /* Sticky notes */
+  .sticky {
+    position:absolute; width:160px; min-height:100px; padding:12px; cursor:move;
+    font-family:'DM Sans',sans-serif; font-size:13px; line-height:1.5;
+    border-radius:2px; box-shadow:2px 4px 16px rgba(0,0,0,0.4);
+    outline:none; resize:both; overflow:auto;
+  }
+  .sticky-del { position:absolute; top:4px; right:6px; background:none; border:none; cursor:pointer; font-size:11px; opacity:0; color:#000; font-weight:bold; }
+  .sticky:hover .sticky-del { opacity:0.5; }
+
+  /* Zoom */
+  .zoom-controls { position:absolute; bottom:20px; left:50%; transform:translateX(-50%); display:flex; gap:4px; z-index:20; background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:4px 8px; align-items:center; }
+  .zoom-btn { width:28px; height:28px; background:none; border:none; color:var(--text); font-size:16px; cursor:pointer; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .zoom-btn:hover { background:var(--surface2); }
+  .zoom-level { font-size:12px; color:var(--muted); min-width:40px; text-align:center; }
+
+  /* Guest banner */
+  .guest-banner {
+    display:none; align-items:center; justify-content:space-between;
+    padding:10px 24px; background:rgba(232,197,71,0.1);
+    border-bottom:1px solid rgba(232,197,71,0.25); flex-shrink:0;
+  }
+  .guest-banner.visible { display:flex; }
+  .guest-banner-text { font-size:13px; color:var(--accent,#e8c547); font-weight:400; }
+  .guest-banner-text span { opacity:0.7; font-weight:300; margin-left:8px; font-size:12px; }
+  .guest-sign-in { padding:6px 16px; background:var(--accent,#e8c547); border:none; color:#000; font-family:'DM Sans',sans-serif; font-size:12px; font-weight:600; cursor:pointer; border-radius:4px; }
+  .guest-sign-in:hover { opacity:0.85; }
+
+</style>
+</head>
+<body>
+
+<div class="guest-banner" id="guest-banner">
+  <div class="guest-banner-text">
+    ⚡ You're using Forge as a guest
+    <span>Your work won't be saved to the cloud</span>
+  </div>
+  <button class="guest-sign-in" onclick="window.location.href='index.html'">Sign In to Save</button>
+</div>
+
+<div class="topbar">
+  <a href="index.html" class="home-link">FORGE</a>
+  <div class="divider"></div>
+  <span class="app-name">Board</span>
+  <div class="divider"></div>
+  <input class="board-title" id="board-title" value="Untitled Board" placeholder="Board name...">
+  <span class="save-status" id="save-status"></span>
+  <button class="btn btn-accent" onclick="saveBoard()">Save</button>
+  <button class="btn" onclick="clearBoard()">Clear</button>
+  <button class="btn" onclick="newBoard()">+ New</button>
+</div>
+
+<div class="canvas-wrap" id="canvas-wrap">
+  <canvas id="board-canvas"></canvas>
+
+  <!-- Floating toolbar -->
+  <div class="toolbar" id="toolbar">
+    <button class="tool-btn active" id="tool-pen" onclick="setTool('pen')" title="Pen">✏️</button>
+    <button class="tool-btn" id="tool-eraser" onclick="setTool('eraser')" title="Eraser">🧹</button>
+    <div class="tool-sep"></div>
+    <button class="tool-btn" id="tool-line" onclick="setTool('line')" title="Line">╱</button>
+    <button class="tool-btn" id="tool-rect" onclick="setTool('rect')" title="Rectangle">▭</button>
+    <button class="tool-btn" id="tool-circle" onclick="setTool('circle')" title="Circle">○</button>
+    <div class="tool-sep"></div>
+    <button class="tool-btn" id="tool-text" onclick="setTool('text')" title="Text">T</button>
+    <button class="tool-btn" id="tool-sticky" onclick="addSticky()" title="Sticky Note">🗒</button>
+    <div class="tool-sep"></div>
+    <button class="tool-btn" id="tool-pan" onclick="setTool('pan')" title="Pan">✋</button>
+  </div>
+
+  <!-- Color strip -->
+  <div class="color-strip" id="color-strip">
+    <div class="color-dot active" style="background:#f0ece4" onclick="setColor(this,'#f0ece4')" title="White"></div>
+    <div class="color-dot" style="background:#e85447" onclick="setColor(this,'#e85447')" title="Red"></div>
+    <div class="color-dot" style="background:#e8874a" onclick="setColor(this,'#e8874a')" title="Orange"></div>
+    <div class="color-dot" style="background:#e8c547" onclick="setColor(this,'#e8c547')" title="Yellow"></div>
+    <div class="color-dot" style="background:#6abf69" onclick="setColor(this,'#6abf69')" title="Green"></div>
+    <div class="color-dot" style="background:#5b9bd5" onclick="setColor(this,'#5b9bd5')" title="Blue"></div>
+    <div class="color-dot" style="background:#a78bfa" onclick="setColor(this,'#a78bfa')" title="Purple"></div>
+    <div class="color-dot" style="background:#4adcd8" onclick="setColor(this,'#4adcd8')" title="Cyan"></div>
+    <div class="color-dot" style="background:#0a0a0a" onclick="setColor(this,'#0a0a0a')" title="Black"></div>
+  </div>
+
+  <!-- Size strip -->
+  <div class="size-strip" id="size-strip">
+    <div class="size-dot active" style="width:4px;height:4px;" onclick="setSize(this,2)" title="Thin"></div>
+    <div class="size-dot" style="width:8px;height:8px;" onclick="setSize(this,5)" title="Medium"></div>
+    <div class="size-dot" style="width:14px;height:14px;" onclick="setSize(this,12)" title="Thick"></div>
+    <div class="size-dot" style="width:20px;height:20px;" onclick="setSize(this,24)" title="X-Thick"></div>
+  </div>
+
+  <!-- Zoom -->
+  <div class="zoom-controls">
+    <button class="zoom-btn" onclick="zoom(-0.1)">−</button>
+    <span class="zoom-level" id="zoom-level">100%</span>
+    <button class="zoom-btn" onclick="zoom(0.1)">+</button>
+    <button class="zoom-btn" onclick="resetZoom()" title="Reset">⊙</button>
+  </div>
+
+  <!-- Boards panel -->
+  <div class="boards-panel">
+    <div class="boards-header">
+      <span class="panel-title">Boards</span>
+      <button class="btn-new-board" onclick="newBoard()">+</button>
+    </div>
+    <div class="boards-list" id="boards-list"><div class="no-boards">Loading...</div></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://jrhakmidckqpulfnksyt.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpyaGFrbWlkY2txcHVsZm5rc3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5NjQ5NzYsImV4cCI6MjA5NDU0MDk3Nn0.FhQEhpGhFw1NdcDtdNci1rbB4ATlB71rxuVp99Nv4mA';
+const {createClient}=supabase; const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+
+const canvas=document.getElementById('board-canvas');
+const ctx=canvas.getContext('2d');
+let tool='pen', color='#f0ece4', size=2, drawing=false;
+let paths=[], currentPath=null;
+let shapeStart=null, shapePreview=null;
+let panStart=null, panOffset={x:0,y:0}, scale=1;
+let stickies=[];
+let currentUser=null, currentDocId=null, saveTimer=null;
+
+function resize() {
+  const wrap=document.getElementById('canvas-wrap');
+  canvas.width=wrap.offsetWidth; canvas.height=wrap.offsetHeight;
+  redraw();
+}
+window.addEventListener('resize', resize);
+
+function setTool(t) {
+  tool=t;
+  document.querySelectorAll('.tool-btn[id^="tool-"]').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tool-'+t)?.classList.add('active');
+  canvas.style.cursor=t==='pan'?'grab':t==='eraser'?'cell':'crosshair';
+}
+
+function setColor(el,c) { color=c; document.querySelectorAll('.color-dot').forEach(d=>d.classList.remove('active')); el.classList.add('active'); }
+function setSize(el,s) { size=s; document.querySelectorAll('.size-dot').forEach(d=>d.classList.remove('active')); el.classList.add('active'); }
+
+function toCanvas(x,y) { return {x:(x-panOffset.x)/scale, y:(y-panOffset.y)/scale}; }
+
+canvas.addEventListener('mousedown',e=>{
+  if(e.button!==0) return;
+  const pos=toCanvas(e.offsetX,e.offsetY);
+  if(tool==='pan') { panStart={x:e.clientX-panOffset.x, y:e.clientY-panOffset.y}; canvas.style.cursor='grabbing'; return; }
+  if(tool==='text') { const t=prompt('Enter text:'); if(t) { paths.push({type:'text',x:pos.x,y:pos.y,text:t,color,size:size*6+10}); redraw(); scheduleAutoSave(); } return; }
+  drawing=true;
+  if(tool==='pen'||tool==='eraser') {
+    currentPath={type:'pen',color:tool==='eraser'?'#1a1a1a':color,size:tool==='eraser'?size*4:size,points:[pos]};
+  } else {
+    shapeStart=pos;
+  }
+});
+
+canvas.addEventListener('mousemove',e=>{
+  const pos=toCanvas(e.offsetX,e.offsetY);
+  if(tool==='pan'&&panStart) { panOffset={x:e.clientX-panStart.x, y:e.clientY-panStart.y}; redraw(); return; }
+  if(!drawing) return;
+  if(tool==='pen'||tool==='eraser') { currentPath.points.push(pos); drawCurrentPath(); }
+  else { shapePreview=pos; redraw(); drawShapePreview(); }
+});
+
+canvas.addEventListener('mouseup',e=>{
+  if(tool==='pan') { panStart=null; canvas.style.cursor='grab'; return; }
+  if(!drawing) return;
+  drawing=false;
+  const pos=toCanvas(e.offsetX,e.offsetY);
+  if(tool==='pen'||tool==='eraser') { if(currentPath&&currentPath.points.length>0) paths.push(currentPath); currentPath=null; }
+  else if(shapeStart) { paths.push({type:tool,x1:shapeStart.x,y1:shapeStart.y,x2:pos.x,y2:pos.y,color,size}); shapeStart=null; shapePreview=null; redraw(); }
+  scheduleAutoSave();
+});
+
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const delta=e.deltaY>0?-0.05:0.05;
+  zoom(delta,e.offsetX,e.offsetY);
+},{passive:false});
+
+function zoom(delta,cx,cy) {
+  const oldScale=scale;
+  scale=Math.min(4,Math.max(0.2,scale+delta));
+  if(cx!==undefined) { panOffset.x=cx-(cx-panOffset.x)*(scale/oldScale); panOffset.y=cy-(cy-panOffset.y)*(scale/oldScale); }
+  document.getElementById('zoom-level').textContent=Math.round(scale*100)+'%';
+  redraw();
+}
+function resetZoom() { scale=1; panOffset={x:0,y:0}; document.getElementById('zoom-level').textContent='100%'; redraw(); }
+
+function drawCurrentPath() {
+  if(!currentPath||currentPath.points.length<2) return;
+  ctx.save(); ctx.translate(panOffset.x,panOffset.y); ctx.scale(scale,scale);
+  ctx.strokeStyle=currentPath.color; ctx.lineWidth=currentPath.size; ctx.lineCap='round'; ctx.lineJoin='round';
+  const pts=currentPath.points;
+  ctx.beginPath(); ctx.moveTo(pts[pts.length-2].x,pts[pts.length-2].y); ctx.lineTo(pts[pts.length-1].x,pts[pts.length-1].y); ctx.stroke();
+  ctx.restore();
+}
+
+function drawShapePreview() {
+  if(!shapeStart||!shapePreview) return;
+  ctx.save(); ctx.translate(panOffset.x,panOffset.y); ctx.scale(scale,scale);
+  ctx.strokeStyle=color; ctx.lineWidth=size; ctx.setLineDash([5,5]);
+  drawShape(tool,shapeStart.x,shapeStart.y,shapePreview.x,shapePreview.y);
+  ctx.setLineDash([]); ctx.restore();
+}
+
+function drawShape(type,x1,y1,x2,y2) {
+  ctx.beginPath();
+  if(type==='line') { ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); }
+  else if(type==='rect') { ctx.strokeRect(x1,y1,x2-x1,y2-y1); }
+  else if(type==='circle') {
+    const rx=(x2-x1)/2, ry=(y2-y1)/2;
+    ctx.ellipse(x1+rx,y1+ry,Math.abs(rx),Math.abs(ry),0,0,Math.PI*2); ctx.stroke();
+  }
+}
+
+function redraw() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // Background grid
+  ctx.save(); ctx.translate(panOffset.x,panOffset.y); ctx.scale(scale,scale);
+  ctx.strokeStyle='rgba(255,255,255,0.04)'; ctx.lineWidth=1/scale;
+  const gs=40, startX=(-panOffset.x/scale)-gs, endX=startX+(canvas.width/scale)+gs*2;
+  const startY=(-panOffset.y/scale)-gs, endY=startY+(canvas.height/scale)+gs*2;
+  for(let x=Math.floor(startX/gs)*gs;x<endX;x+=gs) { ctx.beginPath(); ctx.moveTo(x,startY); ctx.lineTo(x,endY); ctx.stroke(); }
+  for(let y=Math.floor(startY/gs)*gs;y<endY;y+=gs) { ctx.beginPath(); ctx.moveTo(startX,y); ctx.lineTo(endX,y); ctx.stroke(); }
+  ctx.restore();
+
+  ctx.save(); ctx.translate(panOffset.x,panOffset.y); ctx.scale(scale,scale);
+  paths.forEach(p=>{
+    if(p.type==='pen') {
+      ctx.strokeStyle=p.color; ctx.lineWidth=p.size; ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.beginPath(); p.points.forEach((pt,i)=>i===0?ctx.moveTo(pt.x,pt.y):ctx.lineTo(pt.x,pt.y)); ctx.stroke();
+    } else if(p.type==='text') {
+      ctx.fillStyle=p.color; ctx.font=`${p.size}px 'DM Sans', sans-serif`; ctx.fillText(p.text,p.x,p.y);
+    } else {
+      ctx.strokeStyle=p.color; ctx.lineWidth=p.size; drawShape(p.type,p.x1,p.y1,p.x2,p.y2);
+    }
+  });
+  ctx.restore();
+}
+
+function addSticky() {
+  const colors=['#e8c547','#4adcd8','#e8874a','#a78bfa','#6abf69'];
+  const c=colors[stickies.length%colors.length];
+  const wrap=document.getElementById('canvas-wrap');
+  const div=document.createElement('div');
+  div.className='sticky'; div.contentEditable=true;
+  div.style.cssText=`background:${c};left:${100+stickies.length*20}px;top:${100+stickies.length*20}px;`;
+  div.innerHTML='Click to edit...';
+  const del=document.createElement('button'); del.className='sticky-del'; del.textContent='✕';
+  del.onclick=(e)=>{e.stopPropagation();div.remove();stickies=stickies.filter(s=>s.el!==div);scheduleAutoSave();};
+  div.appendChild(del);
+  makeDraggable(div);
+  div.addEventListener('input',scheduleAutoSave);
+  wrap.appendChild(div);
+  stickies.push({el:div,color:c});
+}
+
+function makeDraggable(el) {
+  let ds=null;
+  el.addEventListener('mousedown',e=>{
+    if(e.target.contentEditable==='true'&&e.target!==el) return;
+    if(e.target.classList.contains('sticky-del')) return;
+    ds={startX:e.clientX-el.offsetLeft,startY:e.clientY-el.offsetTop};
+    const move=e2=>{if(!ds)return;el.style.left=(e2.clientX-ds.x)+'px';el.style.top=(e2.clientY-ds.y)+'px';};
+    const up=()=>{ds=null;document.removeEventListener('mousemove',move);document.removeEventListener('mouseup',up);scheduleAutoSave();};
+    document.addEventListener('mousemove',move); document.addEventListener('mouseup',up);
+  });
+}
+
+function clearBoard() { if(!confirm('Clear the board?')) return; paths=[]; redraw(); scheduleAutoSave(); }
+
+// Supabase
+function setStatus(msg,color='var(--muted)') { const el=document.getElementById('save-status'); el.textContent=msg; el.style.color=color; }
+function scheduleAutoSave() { clearTimeout(saveTimer); setStatus('Unsaved','#e8874a'); saveTimer=setTimeout(saveBoard,3000); }
+
+async function saveBoard() {
+  if(!currentUser) { guestSaveCheck(); return; }
+  const title=document.getElementById('board-title').value||'Untitled Board';
+  const stickyData=stickies.filter(s=>document.body.contains(s.el)).map(s=>({
+    text:s.el.innerHTML.replace(/<button.*?<\/button>/,''),
+    color:s.color, x:parseInt(s.el.style.left), y:parseInt(s.el.style.top)
+  }));
+  const content=JSON.stringify({paths,stickies:stickyData});
+  setStatus('Saving...');
+  const payload={user_id:currentUser.id,app:'board',title,content,updated_at:new Date().toISOString()};
+  let result;
+  if(currentDocId){const{data}=await sb.from('documents').update(payload).eq('id',currentDocId).select().single();result=data;}
+  else{const{data}=await sb.from('documents').insert(payload).select().single();result=data;if(result){currentDocId=result.id;history.replaceState(null,'',`?doc=${result.id}`);}}
+  if(result){setStatus('Saved ✓','var(--accent)');await loadBoardList();}else setStatus('Save failed','#e85447');
+}
+
+async function loadBoardFromId(id) {
+  const{data}=await sb.from('documents').select('*').eq('id',id).single();
+  if(data){
+    currentDocId=data.id;
+    document.getElementById('board-title').value=data.title||'Untitled Board';
+    try{const p=JSON.parse(data.content||'{}');paths=p.paths||[];
+      // Restore stickies
+      stickies.forEach(s=>{if(document.body.contains(s.el))s.el.remove();}); stickies=[];
+      (p.stickies||[]).forEach(s=>{
+        const wrap=document.getElementById('canvas-wrap');
+        const div=document.createElement('div'); div.className='sticky'; div.contentEditable=true;
+        div.style.cssText=`background:${s.color};left:${s.x}px;top:${s.y}px;`;
+        div.innerHTML=s.text;
+        const del=document.createElement('button'); del.className='sticky-del'; del.textContent='✕';
+        del.onclick=(e)=>{e.stopPropagation();div.remove();stickies=stickies.filter(st=>st.el!==div);scheduleAutoSave();};
+        div.appendChild(del); makeDraggable(div); div.addEventListener('input',scheduleAutoSave);
+        wrap.appendChild(div); stickies.push({el:div,color:s.color});
+      });
+    }catch(e){paths=[];}
+    redraw(); setStatus('');
+  }
+}
+
+async function loadBoardList() {
+  if(!currentUser) { document.getElementById('boards-list').innerHTML='<div class="no-boards">Sign in to load<br>saved boards.</div>'; return; }
+  const{data}=await sb.from('documents').select('*').eq('user_id',currentUser.id).eq('app','board').order('updated_at',{ascending:false});
+  const list=document.getElementById('boards-list');
+  if(!data||data.length===0){list.innerHTML='<div class="no-boards">No boards yet.</div>';return;}
+  list.innerHTML=data.map(doc=>`
+    <div class="board-item ${doc.id===currentDocId?'active':''}" data-id="${doc.id}" onclick="switchBoard('${doc.id}')">
+      <div class="board-item-title">${doc.title||'Untitled'}</div>
+      <div class="board-item-date">${new Date(doc.updated_at).toLocaleDateString()}</div>
+      <button class="board-item-del" onclick="event.stopPropagation();deleteBoard('${doc.id}')">✕</button>
+    </div>`).join('');
+}
+
+async function switchBoard(id){await loadBoardFromId(id);await loadBoardList();}
+async function deleteBoard(id){if(!confirm('Delete board?'))return;await sb.from('documents').delete().eq('id',id);if(id===currentDocId)newBoard();await loadBoardList();}
+function newBoard(){currentDocId=null;paths=[];stickies.forEach(s=>{if(document.body.contains(s.el))s.el.remove();});stickies=[];document.getElementById('board-title').value='Untitled Board';redraw();setStatus('');history.replaceState(null,'','board.html');}
+
+async function init() {
+  const{data:{user}}=await sb.auth.getUser();
+  const isGuest=!user;
+  if(!user && !sessionStorage.getItem('forge_guest')){window.location.href='index.html';return;}
+  currentUser=user||null;
+  if(isGuest){document.getElementById('guest-banner').classList.add('visible');} resize(); setTool('pen');
+  await loadBoardList();
+  const params=new URLSearchParams(location.search);
+  if(params.get('doc')) await loadBoardFromId(params.get('doc'));
+  document.getElementById('board-title').addEventListener('input',scheduleAutoSave);
+}
+init();
+// Guest save interception
+function guestSaveCheck() {
+  if (!currentUser) {
+    if (confirm('You\'re using Forge as a guest. Sign in to save your work to the cloud.\n\nGo to sign in?')) {
+      window.location.href = 'index.html';
+    }
+    return false;
+  }
+  return true;
+}
+
+</script>
+</body>
+</html>
