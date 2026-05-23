@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Canvas — Forge</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root { --bg:#0a0a0a; --surface:#111; --surface2:#1a1a1a; --border:#2a2a2a; --text:#f0ece4; --muted:#666; --accent:#e85447; --radius:4px; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+
+  .topbar { display:flex; align-items:center; gap:12px; padding:0 16px; height:52px; border-bottom:1px solid var(--border); background:var(--surface); flex-shrink:0; }
+  .home-link { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:3px; color:var(--accent); text-decoration:none; }
+  .home-link:hover { opacity:0.7; }
+  .app-name { font-size:13px; color:var(--muted); }
+  .divider { width:1px; height:20px; background:var(--border); }
+  .canvas-title { flex:1; background:none; border:none; color:var(--text); font-family:'DM Sans',sans-serif; font-size:14px; font-weight:500; outline:none; padding:4px 8px; border-radius:var(--radius); }
+  .canvas-title:hover,.canvas-title:focus { background:var(--surface2); }
+  .save-status { font-size:12px; color:var(--muted); }
+  .btn { padding:7px 14px; border:1px solid var(--border); background:none; color:var(--text); font-family:'DM Sans',sans-serif; font-size:12px; cursor:pointer; border-radius:var(--radius); transition:all 0.2s; font-weight:500; }
+  .btn:hover { border-color:var(--accent); color:var(--accent); }
+  .btn-accent { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .btn-accent:hover { opacity:0.85; color:#fff; }
+
+  /* Layout */
+  .app-layout { display:flex; flex:1; overflow:hidden; }
+
+  /* Left toolbar */
+  .left-panel { width:56px; background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; align-items:center; padding:10px 0; gap:4px; flex-shrink:0; }
+  .tool-btn { width:38px; height:38px; background:none; border:1px solid transparent; color:var(--text); font-size:16px; cursor:pointer; border-radius:6px; transition:all 0.15s; display:flex; align-items:center; justify-content:center; }
+  .tool-btn:hover { background:var(--surface2); border-color:var(--border); }
+  .tool-btn.active { background:rgba(232,84,71,0.15); border-color:var(--accent); }
+  .tool-sep { width:30px; height:1px; background:var(--border); margin:4px 0; }
+
+  /* Right panel */
+  .right-panel { width:200px; background:var(--surface); border-left:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; overflow-y:auto; }
+  .right-panel::-webkit-scrollbar { width:4px; }
+  .right-panel::-webkit-scrollbar-thumb { background:var(--border); }
+  .right-section { padding:14px; border-bottom:1px solid var(--border); }
+  .right-label { font-size:10px; text-transform:uppercase; letter-spacing:2px; color:var(--muted); font-weight:500; margin-bottom:10px; }
+  .color-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:4px; margin-bottom:10px; }
+  .color-swatch { width:100%; aspect-ratio:1; border-radius:3px; cursor:pointer; border:2px solid transparent; transition:transform 0.1s; }
+  .color-swatch:hover { transform:scale(1.1); }
+  .color-swatch.active { border-color:#fff; }
+  .color-picker-wrap { display:flex; gap:6px; align-items:center; margin-top:6px; }
+  .color-preview { width:32px; height:32px; border-radius:4px; border:1px solid var(--border); flex-shrink:0; }
+  .color-input { flex:1; padding:5px 8px; background:var(--surface2); border:1px solid var(--border); color:var(--text); font-family:'DM Sans',sans-serif; font-size:11px; border-radius:var(--radius); outline:none; }
+  .size-row { display:flex; align-items:center; gap:8px; }
+  .size-label { font-size:12px; color:var(--muted); min-width:40px; }
+  .size-slider { flex:1; accent-color:var(--accent); }
+  .opacity-row { display:flex; align-items:center; gap:8px; margin-top:8px; }
+  .size-val { font-size:11px; color:var(--muted); min-width:28px; text-align:right; }
+  .canvas-size-select { width:100%; padding:6px 8px; background:var(--surface2); border:1px solid var(--border); color:var(--text); font-family:'DM Sans',sans-serif; font-size:12px; border-radius:var(--radius); outline:none; margin-bottom:8px; }
+  .btn-full { width:100%; padding:8px; background:none; border:1px solid var(--border); color:var(--text); font-family:'DM Sans',sans-serif; font-size:12px; cursor:pointer; border-radius:var(--radius); margin-bottom:4px; transition:all 0.2s; }
+  .btn-full:hover { border-color:var(--accent); color:var(--accent); }
+  .saved-list { flex:1; overflow-y:auto; }
+  .saved-item { padding:8px 14px; border-bottom:1px solid var(--border); cursor:pointer; font-size:12px; transition:background 0.15s; display:flex; align-items:center; justify-content:space-between; }
+  .saved-item:hover { background:var(--surface2); }
+  .saved-item.active { background:rgba(232,84,71,0.08); color:var(--accent); }
+  .saved-item-del { background:none; border:none; color:var(--muted); cursor:pointer; font-size:11px; opacity:0; }
+  .saved-item:hover .saved-item-del { opacity:1; }
+  .saved-item-del:hover { color:#e85447; }
+  .no-saved { font-size:11px; color:var(--muted); padding:12px 14px; }
+
+  /* Canvas area */
+  .canvas-area { flex:1; display:flex; align-items:center; justify-content:center; background:var(--bg); overflow:hidden; position:relative; }
+  canvas#draw-canvas { cursor:crosshair; box-shadow:0 4px 40px rgba(0,0,0,0.6); image-rendering:pixelated; position:relative; z-index:1; }
+  .canvas-bg { position:absolute; inset:0; background-image:linear-gradient(45deg,#1a1a1a 25%,transparent 25%),linear-gradient(-45deg,#1a1a1a 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#1a1a1a 75%),linear-gradient(-45deg,transparent 75%,#1a1a1a 75%); background-size:16px 16px; background-position:0 0,0 8px,8px -8px,-8px 0; pointer-events:none; }
+
+  /* Guest banner */
+  .guest-banner {
+    display:none; align-items:center; justify-content:space-between;
+    padding:10px 24px; background:rgba(232,197,71,0.1);
+    border-bottom:1px solid rgba(232,197,71,0.25); flex-shrink:0;
+  }
+  .guest-banner.visible { display:flex; }
+  .guest-banner-text { font-size:13px; color:var(--accent,#e8c547); font-weight:400; }
+  .guest-banner-text span { opacity:0.7; font-weight:300; margin-left:8px; font-size:12px; }
+  .guest-sign-in { padding:6px 16px; background:var(--accent,#e8c547); border:none; color:#000; font-family:'DM Sans',sans-serif; font-size:12px; font-weight:600; cursor:pointer; border-radius:4px; }
+  .guest-sign-in:hover { opacity:0.85; }
+
+</style>
+</head>
+<body>
+<input type="file" id="img-import-input" accept="image/*" style="display:none" onchange="handleImportFile(event)">
+
+<div class="guest-banner" id="guest-banner">
+  <div class="guest-banner-text">
+    ⚡ You're using Forge as a guest
+    <span>Your work won't be saved to the cloud</span>
+  </div>
+  <button class="guest-sign-in" onclick="window.location.href='index.html'">Sign In to Save</button>
+</div>
+
+<div class="topbar">
+  <a href="index.html" class="home-link">FORGE</a>
+  <div class="divider"></div>
+  <span class="app-name">Canvas</span>
+  <div class="divider"></div>
+  <input class="canvas-title" id="canvas-title" value="Untitled Canvas" placeholder="Canvas name...">
+  <span class="save-status" id="save-status"></span>
+  <button class="btn" onclick="importImage()">📂 Import Image</button>
+  <button class="btn" onclick="exportPNG()">Export PNG</button>
+  <button class="btn btn-accent" onclick="saveCanvas()">Save</button>
+  <button class="btn" onclick="newCanvas()">+ New</button>
+</div>
+
+<div class="app-layout">
+  <!-- Left tools -->
+  <div class="left-panel">
+    <button class="tool-btn active" id="tool-brush" onclick="setTool('brush')" title="Brush">🖌</button>
+    <button class="tool-btn" id="tool-pencil" onclick="setTool('pencil')" title="Pencil">✏️</button>
+    <button class="tool-btn" id="tool-eraser" onclick="setTool('eraser')" title="Eraser">🧹</button>
+    <div class="tool-sep"></div>
+    <button class="tool-btn" id="tool-fill" onclick="setTool('fill')" title="Fill">🪣</button>
+    <button class="tool-btn" id="tool-eyedrop" onclick="setTool('eyedrop')" title="Eyedropper">💉</button>
+    <div class="tool-sep"></div>
+    <button class="tool-btn" id="tool-rect" onclick="setTool('rect')" title="Rectangle">▭</button>
+    <button class="tool-btn" id="tool-ellipse" onclick="setTool('ellipse')" title="Ellipse">○</button>
+    <button class="tool-btn" id="tool-line" onclick="setTool('line')" title="Line">╱</button>
+    <div class="tool-sep"></div>
+    <button class="tool-btn" id="tool-select" onclick="setTool('select')" title="Select">⬚</button>
+    <div class="tool-sep"></div>
+    <button class="tool-btn" onclick="undo()" title="Undo">↩</button>
+    <button class="tool-btn" onclick="redo()" title="Redo">↪</button>
+  </div>
+
+  <!-- Canvas area -->
+  <div class="canvas-area" id="canvas-area">
+    <div class="canvas-bg"></div>
+    <canvas id="draw-canvas" width="800" height="600"></canvas>
+  </div>
+
+  <!-- Right panel -->
+  <div class="right-panel">
+    <!-- Color -->
+    <div class="right-section">
+      <div class="right-label">Color</div>
+      <div class="color-grid" id="color-grid"></div>
+      <div class="color-picker-wrap">
+        <div class="color-preview" id="color-preview" style="background:#e85447"></div>
+        <input type="color" id="color-picker" value="#e85447" style="width:0;height:0;opacity:0;position:absolute" oninput="setColorFromPicker(this.value)">
+        <input class="color-input" id="color-hex" value="#e85447" maxlength="7" oninput="setColorFromHex(this.value)" onclick="document.getElementById('color-picker').click()">
+      </div>
+    </div>
+
+    <!-- Size / Opacity -->
+    <div class="right-section">
+      <div class="right-label">Brush</div>
+      <div class="size-row">
+        <span class="size-label">Size</span>
+        <input type="range" class="size-slider" id="size-slider" min="1" max="100" value="10" oninput="brushSize=+this.value;document.getElementById('size-val').textContent=this.value+'px'">
+        <span class="size-val" id="size-val">10px</span>
+      </div>
+      <div class="opacity-row">
+        <span class="size-label">Opacity</span>
+        <input type="range" class="size-slider" id="opacity-slider" min="1" max="100" value="100" oninput="brushOpacity=+this.value/100;document.getElementById('opacity-val').textContent=this.value+'%'">
+        <span class="size-val" id="opacity-val">100%</span>
+      </div>
+    </div>
+
+    <!-- Canvas size -->
+    <div class="right-section">
+      <div class="right-label">Canvas Size</div>
+      <select class="canvas-size-select" onchange="resizeCanvas(this.value)">
+        <option value="800x600" selected>800 × 600</option>
+        <option value="1920x1080">1920 × 1080 (HD)</option>
+        <option value="1080x1080">1080 × 1080 (Square)</option>
+        <option value="400x400">400 × 400 (Pixel Art)</option>
+        <option value="2560x1440">2560 × 1440 (QHD)</option>
+      </select>
+      <button class="btn-full" onclick="clearCanvas()">🗑 Clear Canvas</button>
+      <button class="btn-full" onclick="flipH()">↔ Flip H</button>
+      <button class="btn-full" onclick="flipV()">↕ Flip V</button>
+      <button class="btn-full" onclick="grayscale()">◑ Grayscale</button>
+    </div>
+
+    <!-- Saved -->
+    <div class="right-section" style="padding-bottom:0">
+      <div class="right-label" style="padding-bottom:0;margin-bottom:0;display:flex;align-items:center;justify-content:space-between">
+        Saved <button onclick="newCanvas()" style="background:var(--accent);border:none;color:#fff;width:18px;height:18px;border-radius:3px;cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:bold;">+</button>
+      </div>
+    </div>
+    <div class="saved-list" id="saved-list"><div class="no-saved">No saved canvases</div></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://jrhakmidckqpulfnksyt.supabase.co';
+const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpyaGFrbWlkY2txcHVsZm5rc3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5NjQ5NzYsImV4cCI6MjA5NDU0MDk3Nn0.FhQEhpGhFw1NdcDtdNci1rbB4ATlB71rxuVp99Nv4mA';
+const {createClient}=supabase; const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+
+const PALETTE=['#e85447','#e8874a','#e8c547','#6abf69','#5b9bd5','#a78bfa','#4adcd8','#f0ece4','#888','#2a2a2a','#ff8fab','#06d6a0','#118ab2','#ffd166','#073b4c','#ef476f','#26547c','#ffffff','#000000','#8b4513'];
+
+const canvas=document.getElementById('draw-canvas');
+const ctx=canvas.getContext('2d');
+let tool='brush', color='#e85447', brushSize=10, brushOpacity=1;
+let drawing=false, lastX=0, lastY=0, shapeStart=null;
+let history=[], historyIdx=-1;
+let currentUser=null, currentDocId=null, saveTimer=null;
+let zoom=1, panX=0, panY=0;
+
+// Init palette
+const grid=document.getElementById('color-grid');
+PALETTE.forEach(c=>{
+  const s=document.createElement('div'); s.className='color-swatch'; s.style.background=c;
+  s.onclick=()=>pickColor(c); grid.appendChild(s);
+});
+
+function pickColor(c) {
+  color=c;
+  document.getElementById('color-preview').style.background=c;
+  document.getElementById('color-hex').value=c;
+  document.getElementById('color-picker').value=c;
+  document.querySelectorAll('.color-swatch').forEach(s=>s.classList.toggle('active',s.style.background===hexToRgb(c)||s.style.background===c));
+}
+function hexToRgb(h) { const r=parseInt(h.slice(1,3),16),g=parseInt(h.slice(3,5),16),b=parseInt(h.slice(5,7),16); return `rgb(${r}, ${g}, ${b})`; }
+function setColorFromPicker(c) { pickColor(c); }
+function setColorFromHex(c) { if(c.length===7&&c.startsWith('#')) pickColor(c); }
+pickColor('#e85447');
+
+function setTool(t) {
+  tool=t;
+  document.querySelectorAll('.tool-btn[id^="tool-"]').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tool-'+t)?.classList.add('active');
+  const cursors={brush:'crosshair',pencil:'crosshair',eraser:'cell',fill:'cell',eyedrop:'crosshair',rect:'crosshair',ellipse:'crosshair',line:'crosshair',select:'default'};
+  canvas.style.cursor=cursors[t]||'crosshair';
+}
+
+function saveState() {
+  history=history.slice(0,historyIdx+1);
+  history.push(canvas.toDataURL());
+  historyIdx=history.length-1;
+  if(history.length>30) { history.shift(); historyIdx--; }
+}
+
+function undo() { if(historyIdx>0) { historyIdx--; loadState(history[historyIdx]); } }
+function redo() { if(historyIdx<history.length-1) { historyIdx++; loadState(history[historyIdx]); } }
+function loadState(src) { const img=new Image(); img.onload=()=>ctx.drawImage(img,0,0); img.src=src; }
+
+saveState(); // initial blank state
+
+canvas.addEventListener('mousedown',e=>{
+  const {x,y}=getPos(e);
+  if(tool==='eyedrop') { const d=ctx.getImageData(x,y,1,1).data; pickColor(`#${d[0].toString(16).padStart(2,'0')}${d[1].toString(16).padStart(2,'0')}${d[2].toString(16).padStart(2,'0')}`); return; }
+  if(tool==='fill') { floodFill(x,y,color); scheduleAutoSave(); return; }
+  drawing=true; lastX=x; lastY=y;
+  if(['rect','ellipse','line'].includes(tool)) { shapeStart={x,y}; }
+  else { ctx.beginPath(); ctx.moveTo(x,y); }
+  e.preventDefault();
+});
+
+canvas.addEventListener('mousemove',e=>{
+  if(!drawing) return;
+  const {x,y}=getPos(e);
+  if(tool==='brush'||tool==='pencil') {
+    ctx.globalAlpha=tool==='pencil'?1:brushOpacity;
+    ctx.strokeStyle=color; ctx.lineWidth=brushSize; ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.globalCompositeOperation='source-over';
+    ctx.lineTo(x,y); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x,y);
+  } else if(tool==='eraser') {
+    ctx.globalAlpha=1; ctx.globalCompositeOperation='destination-out';
+    ctx.fillStyle='rgba(0,0,0,1)'; ctx.beginPath(); ctx.arc(x,y,brushSize/2,0,Math.PI*2); ctx.fill();
+    ctx.globalCompositeOperation='source-over';
+  }
+  lastX=x; lastY=y;
+});
+
+canvas.addEventListener('mouseup',e=>{
+  if(!drawing) return;
+  drawing=false;
+  const {x,y}=getPos(e);
+  ctx.globalAlpha=brushOpacity;
+  ctx.globalCompositeOperation='source-over';
+  if(tool==='rect'&&shapeStart) { ctx.strokeStyle=color; ctx.lineWidth=brushSize; ctx.strokeRect(shapeStart.x,shapeStart.y,x-shapeStart.x,y-shapeStart.y); }
+  else if(tool==='ellipse'&&shapeStart) {
+    ctx.strokeStyle=color; ctx.lineWidth=brushSize;
+    ctx.beginPath(); ctx.ellipse(shapeStart.x+(x-shapeStart.x)/2,shapeStart.y+(y-shapeStart.y)/2,Math.abs(x-shapeStart.x)/2,Math.abs(y-shapeStart.y)/2,0,0,Math.PI*2); ctx.stroke();
+  } else if(tool==='line'&&shapeStart) {
+    ctx.strokeStyle=color; ctx.lineWidth=brushSize; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(shapeStart.x,shapeStart.y); ctx.lineTo(x,y); ctx.stroke();
+  }
+  ctx.globalAlpha=1; shapeStart=null; saveState(); scheduleAutoSave();
+});
+
+function getPos(e) {
+  const rect=canvas.getBoundingClientRect();
+  return {x:Math.round((e.clientX-rect.left)*(canvas.width/rect.width)), y:Math.round((e.clientY-rect.top)*(canvas.height/rect.height))};
+}
+
+function floodFill(startX,startY,fillColor) {
+  const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+  const data=imageData.data;
+  const idx=(x,y)=>(y*canvas.width+x)*4;
+  const target=data.slice(idx(startX,startY),idx(startX,startY)+4);
+  const fill=[parseInt(fillColor.slice(1,3),16),parseInt(fillColor.slice(3,5),16),parseInt(fillColor.slice(5,7),16),255];
+  if(target[0]===fill[0]&&target[1]===fill[1]&&target[2]===fill[2]) return;
+  const stack=[[startX,startY]];
+  while(stack.length) {
+    const [x,y]=stack.pop(); if(x<0||x>=canvas.width||y<0||y>=canvas.height) continue;
+    const i=idx(x,y);
+    if(data[i]!==target[0]||data[i+1]!==target[1]||data[i+2]!==target[2]) continue;
+    data[i]=fill[0]; data[i+1]=fill[1]; data[i+2]=fill[2]; data[i+3]=fill[3];
+    stack.push([x+1,y],[x-1,y],[x,y+1],[x,y-1]);
+  }
+  ctx.putImageData(imageData,0,0);
+}
+
+function clearCanvas() { if(!confirm('Clear canvas?')) return; ctx.clearRect(0,0,canvas.width,canvas.height); saveState(); scheduleAutoSave(); }
+function flipH() { ctx.save(); ctx.scale(-1,1); ctx.drawImage(canvas,-canvas.width,0); ctx.restore(); saveState(); scheduleAutoSave(); }
+function flipV() { ctx.save(); ctx.scale(1,-1); ctx.drawImage(canvas,0,-canvas.height); ctx.restore(); saveState(); scheduleAutoSave(); }
+function grayscale() { const d=ctx.getImageData(0,0,canvas.width,canvas.height); for(let i=0;i<d.data.length;i+=4){const g=0.299*d.data[i]+0.587*d.data[i+1]+0.114*d.data[i+2];d.data[i]=d.data[i+1]=d.data[i+2]=g;} ctx.putImageData(d,0,0); saveState(); scheduleAutoSave(); }
+
+function resizeCanvas(val) {
+  const [w,h]=val.split('x').map(Number);
+  const tmp=canvas.toDataURL();
+  canvas.width=w; canvas.height=h;
+  const img=new Image(); img.onload=()=>{ctx.drawImage(img,0,0);saveState();}; img.src=tmp;
+}
+
+function exportPNG() {
+  const a=document.createElement('a'); a.download=(document.getElementById('canvas-title').value||'canvas')+'.png';
+  a.href=canvas.toDataURL('image/png'); a.click();
+}
+
+function importImage() {
+  document.getElementById('img-import-input').value='';
+  document.getElementById('img-import-input').click();
+}
+
+function handleImportFile(e) {
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(ev) {
+    const img=new Image();
+    img.onload=function() {
+      // Ask user how to place it
+      const choice=confirm('Fit image to canvas?\n\nOK = fit to canvas size\nCancel = place at original size (may be cropped)');
+      if(choice) {
+        // Fit: draw scaled to fill canvas
+        ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      } else {
+        // Center at original size
+        const x=Math.round((canvas.width-img.width)/2);
+        const y=Math.round((canvas.height-img.height)/2);
+        ctx.drawImage(img,x,y);
+      }
+      saveState(); scheduleAutoSave();
+    };
+    img.src=ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// Supabase
+function setStatus(msg,color='var(--muted)') { const el=document.getElementById('save-status'); el.textContent=msg; el.style.color=color; }
+function scheduleAutoSave() { clearTimeout(saveTimer); setStatus('Unsaved','#e8874a'); saveTimer=setTimeout(saveCanvas,4000); }
+
+async function saveCanvas() {
+  if(!currentUser) { guestSaveCheck(); return; }
+  const title=document.getElementById('canvas-title').value||'Untitled Canvas';
+  const content=canvas.toDataURL('image/png');
+  const meta=JSON.stringify({width:canvas.width,height:canvas.height});
+  setStatus('Saving...');
+  const payload={user_id:currentUser.id,app:'canvas',title,content:JSON.stringify({dataUrl:content,meta}),updated_at:new Date().toISOString()};
+  let result;
+  if(currentDocId){const{data}=await sb.from('documents').update(payload).eq('id',currentDocId).select().single();result=data;}
+  else{const{data}=await sb.from('documents').insert(payload).select().single();result=data;if(result){currentDocId=result.id;history.replaceState(null,'',`?doc=${result.id}`);}}
+  if(result){setStatus('Saved ✓','var(--accent)');await loadSavedList();}else setStatus('Save failed','#e85447');
+}
+
+async function loadCanvasFromId(id) {
+  const{data}=await sb.from('documents').select('*').eq('id',id).single();
+  if(data){
+    currentDocId=data.id;
+    document.getElementById('canvas-title').value=data.title||'Untitled Canvas';
+    try{
+      const p=JSON.parse(data.content||'{}');
+      if(p.meta){const m=JSON.parse(p.meta);canvas.width=m.width||800;canvas.height=m.height||600;}
+      if(p.dataUrl){const img=new Image();img.onload=()=>{ctx.drawImage(img,0,0);saveState();};img.src=p.dataUrl;}
+    }catch(e){}
+    setStatus('');
+  }
+}
+
+async function loadSavedList() {
+  if(!currentUser) { document.getElementById('saved-list').innerHTML='<div class="no-saved">Sign in to see<br>saved canvases.</div>'; return; }
+  const{data}=await sb.from('documents').select('id,title,updated_at').eq('user_id',currentUser.id).eq('app','canvas').order('updated_at',{ascending:false});
+  const list=document.getElementById('saved-list');
+  if(!data||data.length===0){list.innerHTML='<div class="no-saved">No saved canvases</div>';return;}
+  list.innerHTML=data.map(doc=>`
+    <div class="saved-item ${doc.id===currentDocId?'active':''}" onclick="switchCanvas('${doc.id}')">
+      <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${doc.title||'Untitled'}</span>
+      <button class="saved-item-del" onclick="event.stopPropagation();deleteCanvas('${doc.id}')">✕</button>
+    </div>`).join('');
+}
+
+async function switchCanvas(id){await loadCanvasFromId(id);await loadSavedList();}
+async function deleteCanvas(id){if(!confirm('Delete canvas?'))return;await sb.from('documents').delete().eq('id',id);if(id===currentDocId)newCanvas();await loadSavedList();}
+function newCanvas(){currentDocId=null;ctx.clearRect(0,0,canvas.width,canvas.height);document.getElementById('canvas-title').value='Untitled Canvas';saveState();setStatus('');history.replaceState(null,'','canvas.html');}
+
+async function init() {
+  const{data:{user}}=await sb.auth.getUser();
+  const isGuest=!user;
+  if(!user && !sessionStorage.getItem('forge_guest')){window.location.href='index.html';return;}
+  currentUser=user||null;
+  if(isGuest){document.getElementById('guest-banner').classList.add('visible');}
+  await loadSavedList();
+  const params=new URLSearchParams(location.search);
+  if(params.get('doc')) await loadCanvasFromId(params.get('doc'));
+  document.getElementById('canvas-title').addEventListener('input',scheduleAutoSave);
+}
+init();
+// Guest save interception
+function guestSaveCheck() {
+  if (!currentUser) {
+    if (confirm('You\'re using Forge as a guest. Sign in to save your work to the cloud.\n\nGo to sign in?')) {
+      window.location.href = 'index.html';
+    }
+    return false;
+  }
+  return true;
+}
+
+</script>
+</body>
+</html>
