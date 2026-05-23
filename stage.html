@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stage — Forge</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root { --bg:#0a0a0a; --surface:#111; --surface2:#1a1a1a; --border:#2a2a2a; --text:#f0ece4; --muted:#666; --accent:#e8874a; --radius:4px; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+  
+  .topbar { display:flex; align-items:center; gap:12px; padding:0 16px; height:52px; border-bottom:1px solid var(--border); background:var(--surface); flex-shrink:0; }
+  .home-link { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:3px; color:var(--accent); text-decoration:none; }
+  .home-link:hover { opacity:0.7; }
+  .app-name { font-size:13px; color:var(--muted); }
+  .divider { width:1px; height:20px; background:var(--border); }
+  .doc-title-input { flex:1; background:none; border:none; color:var(--text); font-family:'DM Sans',sans-serif; font-size:14px; font-weight:500; outline:none; padding:4px 8px; border-radius:var(--radius); }
+  .doc-title-input:hover, .doc-title-input:focus { background:var(--surface2); }
+  .save-status { font-size:12px; color:var(--muted); }
+  .btn { padding:7px 14px; border:1px solid var(--border); background:none; color:var(--text); font-family:'DM Sans',sans-serif; font-size:12px; cursor:pointer; border-radius:var(--radius); transition:all 0.2s; font-weight:500; }
+  .btn:hover { border-color:var(--accent); color:var(--accent); }
+  .btn-accent { background:var(--accent); border-color:var(--accent); color:#000; }
+  .btn-accent:hover { opacity:0.85; color:#000; }
+  .btn-present { background:#222; border-color:#444; gap:6px; display:flex; align-items:center; }
+  .btn-present:hover { border-color:var(--accent); }
+
+  /* Toolbar */
+  .toolbar { display:flex; align-items:center; gap:4px; padding:6px 16px; border-bottom:1px solid var(--border); background:var(--surface); flex-shrink:0; }
+  .tool-btn { padding:5px 10px; background:none; border:1px solid transparent; color:var(--text); font-size:12px; cursor:pointer; border-radius:var(--radius); transition:all 0.15s; font-family:'DM Sans',sans-serif; }
+  .tool-btn:hover { background:var(--surface2); border-color:var(--border); }
+  .tool-sep { width:1px; height:20px; background:var(--border); margin:0 4px; }
+  .tool-select { padding:4px 8px; background:var(--surface2); border:1px solid var(--border); color:var(--text); font-family:'DM Sans',sans-serif; font-size:12px; border-radius:var(--radius); cursor:pointer; outline:none; }
+
+  /* Layout */
+  .stage-layout { display:flex; flex:1; overflow:hidden; }
+
+  /* Slide panel */
+  .slide-panel { width:200px; background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+  .slide-panel-header { padding:12px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .panel-title { font-size:11px; text-transform:uppercase; letter-spacing:2px; color:var(--muted); font-weight:500; }
+  .btn-add-slide { width:22px; height:22px; background:var(--accent); border:none; color:#000; border-radius:var(--radius); cursor:pointer; font-size:14px; display:flex; align-items:center; justify-content:center; font-weight:bold; }
+  .slides-list { flex:1; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:6px; }
+  .slide-thumb {
+    border-radius:var(--radius); cursor:pointer; border:2px solid transparent;
+    overflow:hidden; transition:border-color 0.15s; position:relative; aspect-ratio:16/9;
+    background:#1a1a1a;
+  }
+  .slide-thumb.active { border-color:var(--accent); }
+  .slide-thumb:hover { border-color:#444; }
+  .slide-thumb canvas { width:100%; height:100%; display:block; }
+  .slide-num { position:absolute; bottom:4px; left:6px; font-size:10px; color:rgba(255,255,255,0.4); }
+  .slide-del { position:absolute; top:4px; right:4px; width:16px; height:16px; background:rgba(232,84,71,0.8); border:none; color:#fff; border-radius:2px; cursor:pointer; font-size:10px; opacity:0; display:flex; align-items:center; justify-content:center; }
+  .slide-thumb:hover .slide-del { opacity:1; }
+
+  /* Docs panel */
+  .docs-panel { width:200px; background:var(--surface); border-left:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; }
+  .docs-panel-header { padding:12px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .docs-list { flex:1; overflow-y:auto; padding:6px; }
+  .sidebar-doc { padding:8px 10px; border-radius:var(--radius); cursor:pointer; border:1px solid transparent; margin-bottom:2px; position:relative; }
+  .sidebar-doc:hover { background:var(--surface2); }
+  .sidebar-doc.active { background:rgba(232,135,74,0.1); border-color:rgba(232,135,74,0.3); }
+  .sidebar-doc-title { font-size:12px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
+  .sidebar-doc-date { font-size:10px; color:var(--muted); }
+  .sidebar-doc-del { position:absolute; right:6px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--muted); cursor:pointer; opacity:0; font-size:12px; }
+  .sidebar-doc:hover .sidebar-doc-del { opacity:1; }
+  .sidebar-doc-del:hover { color:#e85447; }
+  .no-docs-msg { font-size:12px; color:var(--muted); padding:12px; text-align:center; line-height:1.5; }
+
+  /* Main stage */
+  .stage-area { flex:1; display:flex; align-items:center; justify-content:center; padding:30px; overflow:auto; background:var(--bg); }
+  .slide-canvas-wrap { position:relative; }
+  .slide-editor {
+    width:800px; height:450px; background:#fff; position:relative; overflow:hidden;
+    box-shadow: 0 8px 60px rgba(0,0,0,0.6);
+  }
+  .slide-element {
+    position:absolute; cursor:move; user-select:none; min-width:80px; min-height:30px;
+    outline:none; padding:8px;
+  }
+  .slide-element.selected { outline:2px solid var(--accent); }
+  .slide-element[contenteditable=true] { cursor:text; }
+  .element-resize { position:absolute; bottom:-4px; right:-4px; width:8px; height:8px; background:var(--accent); cursor:se-resize; border-radius:1px; }
+
+  /* Themes */
+  .slide-editor.theme-dark { background:#1a1a2e; color:#eee; }
+  .slide-editor.theme-warm { background:#fef9f0; color:#2d1b00; }
+  .slide-editor.theme-ocean { background:#0d2137; color:#e0f0ff; }
+  .slide-editor.theme-forest { background:#0d1f17; color:#d4f0d4; }
+
+  /* Present mode */
+  .present-overlay { position:fixed; inset:0; background:#000; z-index:2000; display:none; align-items:center; justify-content:center; flex-direction:column; }
+  .present-overlay.active { display:flex; }
+  .present-slide { width:90vw; max-width:1200px; aspect-ratio:16/9; position:relative; overflow:hidden; }
+  .present-nav { position:fixed; bottom:30px; left:50%; transform:translateX(-50%); display:flex; gap:12px; z-index:2100; }
+  .present-btn { padding:10px 24px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:#fff; font-family:'DM Sans',sans-serif; font-size:14px; cursor:pointer; border-radius:var(--radius); }
+  .present-btn:hover { background:rgba(255,255,255,0.2); }
+  .present-counter { padding:10px 16px; color:rgba(255,255,255,0.5); font-size:13px; display:flex; align-items:center; }
+
+  /* Guest banner */
+  .guest-banner {
+    display:none; align-items:center; justify-content:space-between;
+    padding:10px 24px; background:rgba(232,197,71,0.1);
+    border-bottom:1px solid rgba(232,197,71,0.25); flex-shrink:0;
+  }
+  .guest-banner.visible { display:flex; }
+  .guest-banner-text { font-size:13px; color:var(--accent,#e8c547); font-weight:400; }
+  .guest-banner-text span { opacity:0.7; font-weight:300; margin-left:8px; font-size:12px; }
+  .guest-sign-in { padding:6px 16px; background:var(--accent,#e8c547); border:none; color:#000; font-family:'DM Sans',sans-serif; font-size:12px; font-weight:600; cursor:pointer; border-radius:4px; }
+  .guest-sign-in:hover { opacity:0.85; }
+
+</style>
+</head>
+<body>
+
+<div class="guest-banner" id="guest-banner">
+  <div class="guest-banner-text">
+    ⚡ You're using Forge as a guest
+    <span>Your work won't be saved to the cloud</span>
+  </div>
+  <button class="guest-sign-in" onclick="window.location.href='index.html'">Sign In to Save</button>
+</div>
+
+<div class="topbar">
+  <a href="index.html" class="home-link">FORGE</a>
+  <div class="divider"></div>
+  <span class="app-name">Stage</span>
+  <div class="divider"></div>
+  <input class="doc-title-input" id="doc-title" value="Untitled Presentation" placeholder="Presentation title...">
+  <span class="save-status" id="save-status"></span>
+  <button class="btn btn-accent" onclick="saveDocument()">Save</button>
+  <button class="btn btn-present" onclick="startPresent()">▶ Present</button>
+  <button class="btn" onclick="newDocument()">+ New</button>
+</div>
+
+<div class="toolbar">
+  <button class="tool-btn" onclick="addTextElement('CLICK TO EDIT TITLE', 28, true)">+ Title</button>
+  <button class="tool-btn" onclick="addTextElement('Body text here', 16, false)">+ Text</button>
+  <button class="tool-btn" onclick="addShape('rect')">■ Shape</button>
+  <button class="tool-btn" onclick="addShape('circle')">● Circle</button>
+  <div class="tool-sep"></div>
+  <select class="tool-select" id="theme-select" onchange="changeTheme(this.value)">
+    <option value="">⬜ White</option>
+    <option value="theme-dark">◼ Dark</option>
+    <option value="theme-warm">🟡 Warm</option>
+    <option value="theme-ocean">🔵 Ocean</option>
+    <option value="theme-forest">🟢 Forest</option>
+  </select>
+  <div class="tool-sep"></div>
+  <button class="tool-btn" onclick="deleteSelected()">🗑 Delete</button>
+  <button class="tool-btn" onclick="bringForward()">↑ Forward</button>
+  <button class="tool-btn" onclick="sendBack()">↓ Back</button>
+  <div class="tool-sep"></div>
+  <span style="font-size:12px; color:var(--muted)">Slide <span id="slide-indicator">1</span> of <span id="slide-count">1</span></span>
+</div>
+
+<div class="stage-layout">
+  <!-- Slide thumbnails -->
+  <div class="slide-panel">
+    <div class="slide-panel-header">
+      <span class="panel-title">Slides</span>
+      <button class="btn-add-slide" onclick="addSlide()">+</button>
+    </div>
+    <div class="slides-list" id="slides-list"></div>
+  </div>
+
+  <!-- Editor -->
+  <div class="stage-area">
+    <div class="slide-canvas-wrap">
+      <div class="slide-editor" id="slide-editor" onclick="deselectAll()"></div>
+    </div>
+  </div>
+
+  <!-- Docs panel -->
+  <div class="docs-panel">
+    <div class="docs-panel-header">
+      <span class="panel-title">Files</span>
+    </div>
+    <div class="docs-list" id="doc-list"><div class="no-docs-msg">Loading...</div></div>
+  </div>
+</div>
+
+<!-- Present overlay -->
+<div class="present-overlay" id="present-overlay">
+  <div class="present-slide" id="present-slide-area"></div>
+  <div class="present-nav">
+    <button class="present-btn" onclick="prevPresentSlide()">← Prev</button>
+    <span class="present-counter" id="present-counter">1 / 1</span>
+    <button class="present-btn" onclick="nextPresentSlide()">Next →</button>
+    <button class="present-btn" onclick="endPresent()" style="border-color:rgba(232,84,71,0.5)">✕ Exit</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL = 'https://jrhakmidckqpulfnksyt.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpyaGFrbWlkY2txcHVsZm5rc3l0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5NjQ5NzYsImV4cCI6MjA5NDU0MDk3Nn0.FhQEhpGhFw1NdcDtdNci1rbB4ATlB71rxuVp99Nv4mA';
+const {createClient}=supabase; const sb=createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+
+let slides = [{ id: 1, theme: '', elements: [] }];
+let currentSlideIdx = 0;
+let selectedEl = null;
+let dragState = null;
+let currentUser = null, currentDocId = null, autoSaveTimer = null;
+let presentIdx = 0;
+
+function addSlide() {
+  saveCurrentSlide();
+  slides.push({ id: Date.now(), theme: '', elements: [] });
+  currentSlideIdx = slides.length - 1;
+  renderSlideList();
+  loadCurrentSlide();
+  scheduleAutoSave();
+}
+
+function saveCurrentSlide() {
+  const editor = document.getElementById('slide-editor');
+  const elems = [];
+  editor.querySelectorAll('.slide-element').forEach(el => {
+    elems.push({
+      id: el.dataset.id,
+      type: el.dataset.type,
+      x: parseInt(el.style.left)||0,
+      y: parseInt(el.style.top)||0,
+      w: parseInt(el.style.width)||200,
+      h: parseInt(el.style.height)||80,
+      content: el.innerHTML.replace(/<div class="element-resize.*?<\/div>/,''),
+      fontSize: el.style.fontSize,
+      bold: el.style.fontWeight==='bold',
+      color: el.style.color,
+      bg: el.style.background,
+      borderRadius: el.style.borderRadius,
+    });
+  });
+  slides[currentSlideIdx].elements = elems;
+  slides[currentSlideIdx].theme = editor.className.replace('slide-editor','').trim();
+}
+
+function loadCurrentSlide() {
+  const slide = slides[currentSlideIdx];
+  const editor = document.getElementById('slide-editor');
+  editor.innerHTML = '';
+  editor.className = 'slide-editor' + (slide.theme ? ' ' + slide.theme : '');
+  document.getElementById('theme-select').value = slide.theme || '';
+  slide.elements.forEach(el => createElementFromData(el));
+  document.getElementById('slide-indicator').textContent = currentSlideIdx + 1;
+  document.getElementById('slide-count').textContent = slides.length;
+  renderSlideList();
+}
+
+function renderSlideList() {
+  const list = document.getElementById('slides-list');
+  list.innerHTML = slides.map((s, i) => `
+    <div class="slide-thumb ${i===currentSlideIdx?'active':''}" onclick="switchSlide(${i})" title="Slide ${i+1}">
+      <div style="width:100%;height:100%;background:${s.theme==='theme-dark'?'#1a1a2e':s.theme==='theme-warm'?'#fef9f0':s.theme==='theme-ocean'?'#0d2137':s.theme==='theme-forest'?'#0d1f17':'#fff'};display:flex;align-items:center;justify-content:center;font-size:10px;color:#999;">
+        Slide ${i+1}
+      </div>
+      <span class="slide-num">${i+1}</span>
+      ${slides.length>1?`<button class="slide-del" onclick="event.stopPropagation();deleteSlide(${i})">✕</button>`:''}
+    </div>`).join('');
+}
+
+function switchSlide(idx) {
+  saveCurrentSlide();
+  currentSlideIdx = idx;
+  loadCurrentSlide();
+}
+
+function deleteSlide(idx) {
+  if (slides.length <= 1) return;
+  slides.splice(idx, 1);
+  if (currentSlideIdx >= slides.length) currentSlideIdx = slides.length - 1;
+  loadCurrentSlide();
+  scheduleAutoSave();
+}
+
+function changeTheme(theme) {
+  const editor = document.getElementById('slide-editor');
+  editor.className = 'slide-editor' + (theme ? ' ' + theme : '');
+  slides[currentSlideIdx].theme = theme;
+  scheduleAutoSave();
+}
+
+function makeId() { return 'el_' + Math.random().toString(36).substr(2,9); }
+
+function addTextElement(text, fontSize, bold) {
+  const id = makeId();
+  createElementFromData({ id, type:'text', x:100, y:80+(Math.random()*50), w:400, h:bold?80:60, content: `<div contenteditable="true" style="width:100%;height:100%;outline:none;">${text}</div>`, fontSize:fontSize+'px', bold, color:'', bg:'', borderRadius:'' });
+  scheduleAutoSave();
+}
+
+function addShape(type) {
+  const id = makeId();
+  createElementFromData({ id, type:'shape', x:150+(Math.random()*100), y:100+(Math.random()*50), w:160, h:80, content:'', fontSize:'14px', bold:false, color:'', bg:'rgba(232,135,74,0.7)', borderRadius: type==='circle'?'50%':'' });
+  scheduleAutoSave();
+}
+
+function createElementFromData(data) {
+  const el = document.createElement('div');
+  el.className = 'slide-element';
+  el.dataset.id = data.id;
+  el.dataset.type = data.type;
+  el.style.cssText = `left:${data.x}px;top:${data.y}px;width:${data.w}px;height:${data.h}px;font-size:${data.fontSize||'16px'};font-weight:${data.bold?'bold':'normal'};color:${data.color||''};background:${data.bg||''};border-radius:${data.borderRadius||''};`;
+  el.innerHTML = data.content + `<div class="element-resize"></div>`;
+  el.addEventListener('mousedown', elMousedown);
+  el.querySelector('.element-resize').addEventListener('mousedown', resizeMousedown);
+  document.getElementById('slide-editor').appendChild(el);
+}
+
+function elMousedown(e) {
+  if (e.target.hasAttribute('contenteditable') || e.target.classList.contains('element-resize')) return;
+  e.preventDefault(); e.stopPropagation();
+  deselectAll();
+  selectEl(e.currentTarget);
+  const rect = e.currentTarget.getBoundingClientRect();
+  dragState = { el: e.currentTarget, startX: e.clientX - rect.left, startY: e.clientY - rect.top, moving: false };
+  document.addEventListener('mousemove', dragMove);
+  document.addEventListener('mouseup', dragEnd);
+}
+
+function dragMove(e) {
+  if (!dragState) return;
+  dragState.moving = true;
+  const editor = document.getElementById('slide-editor');
+  const er = editor.getBoundingClientRect();
+  let x = e.clientX - er.left - dragState.startX;
+  let y = e.clientY - er.top - dragState.startY;
+  x = Math.max(0, Math.min(x, editor.offsetWidth - dragState.el.offsetWidth));
+  y = Math.max(0, Math.min(y, editor.offsetHeight - dragState.el.offsetHeight));
+  dragState.el.style.left = x + 'px';
+  dragState.el.style.top = y + 'px';
+}
+
+function dragEnd() {
+  dragState = null;
+  document.removeEventListener('mousemove', dragMove);
+  document.removeEventListener('mouseup', dragEnd);
+  scheduleAutoSave();
+}
+
+let resizeState = null;
+function resizeMousedown(e) {
+  e.preventDefault(); e.stopPropagation();
+  const el = e.target.parentElement;
+  resizeState = { el, startX: e.clientX, startY: e.clientY, startW: el.offsetWidth, startH: el.offsetHeight };
+  document.addEventListener('mousemove', resizeMove);
+  document.addEventListener('mouseup', resizeEnd);
+}
+function resizeMove(e) {
+  if (!resizeState) return;
+  const w = Math.max(60, resizeState.startW + e.clientX - resizeState.startX);
+  const h = Math.max(30, resizeState.startH + e.clientY - resizeState.startY);
+  resizeState.el.style.width = w + 'px';
+  resizeState.el.style.height = h + 'px';
+}
+function resizeEnd() { resizeState = null; document.removeEventListener('mousemove', resizeMove); document.removeEventListener('mouseup', resizeEnd); scheduleAutoSave(); }
+
+function selectEl(el) { selectedEl = el; el.classList.add('selected'); }
+function deselectAll(e) { document.querySelectorAll('.slide-element').forEach(el => el.classList.remove('selected')); selectedEl = null; }
+function deleteSelected() { if (selectedEl) { selectedEl.remove(); selectedEl = null; scheduleAutoSave(); } }
+function bringForward() { if (selectedEl) { const p=selectedEl.parentElement; if(selectedEl.nextSibling) p.insertBefore(selectedEl.nextSibling, selectedEl); scheduleAutoSave(); } }
+function sendBack() { if (selectedEl) { const p=selectedEl.parentElement; p.insertBefore(selectedEl, p.firstChild); scheduleAutoSave(); } }
+
+// Present
+function startPresent() {
+  saveCurrentSlide();
+  presentIdx = 0;
+  showPresentSlide();
+  document.getElementById('present-overlay').classList.add('active');
+}
+function showPresentSlide() {
+  const slide = slides[presentIdx];
+  const area = document.getElementById('present-slide-area');
+  area.className = 'present-slide' + (slide.theme ? ' ' + slide.theme : '');
+  area.style.background = slide.theme==='theme-dark'?'#1a1a2e':slide.theme==='theme-warm'?'#fef9f0':slide.theme==='theme-ocean'?'#0d2137':slide.theme==='theme-forest'?'#0d1f17':'#fff';
+  area.innerHTML = slide.elements.map(el => `<div style="position:absolute;left:${(el.x/800)*100}%;top:${(el.y/450)*100}%;width:${(el.w/800)*100}%;min-height:${(el.h/450)*100}%;font-size:calc(${el.fontSize||'16px'} * 1.5);font-weight:${el.bold?'bold':'normal'};color:${el.color||'inherit'};background:${el.bg||''};border-radius:${el.borderRadius||''};padding:8px;">${el.content.replace(/<div class="element-resize.*?<\/div>/,'')}</div>`).join('');
+  document.getElementById('present-counter').textContent = `${presentIdx+1} / ${slides.length}`;
+}
+function prevPresentSlide() { if(presentIdx>0) { presentIdx--; showPresentSlide(); } }
+function nextPresentSlide() { if(presentIdx<slides.length-1) { presentIdx++; showPresentSlide(); } }
+function endPresent() { document.getElementById('present-overlay').classList.remove('active'); }
+document.addEventListener('keydown', e => { if(!document.getElementById('present-overlay').classList.contains('active')) return; if(e.key==='ArrowRight'||e.key===' ') nextPresentSlide(); else if(e.key==='ArrowLeft') prevPresentSlide(); else if(e.key==='Escape') endPresent(); });
+
+// Supabase
+function scheduleAutoSave() { clearTimeout(autoSaveTimer); setStatus('Unsaved','#e8874a'); autoSaveTimer=setTimeout(saveDocument,3000); }
+function setStatus(msg,color='var(--muted)') { const el=document.getElementById('save-status'); el.textContent=msg; el.style.color=color; }
+
+async function saveDocument() {
+  if(!currentUser) { guestSaveCheck(); return; }
+  saveCurrentSlide();
+  const title=document.getElementById('doc-title').value||'Untitled Presentation';
+  const content=JSON.stringify(slides);
+  setStatus('Saving...');
+  const payload={user_id:currentUser.id,app:'stage',title,content,updated_at:new Date().toISOString()};
+  let result;
+  if(currentDocId) { const {data}=await sb.from('documents').update(payload).eq('id',currentDocId).select().single(); result=data; }
+  else { const {data}=await sb.from('documents').insert(payload).select().single(); result=data; if(result){currentDocId=result.id;history.replaceState(null,'',`?doc=${result.id}`);} }
+  if(result) { setStatus('Saved ✓','var(--accent)'); await loadDocList(); } else setStatus('Save failed','#e85447');
+}
+
+async function loadDocFromId(id) {
+  const {data}=await sb.from('documents').select('*').eq('id',id).single();
+  if(data) {
+    currentDocId=data.id;
+    document.getElementById('doc-title').value=data.title||'Untitled Presentation';
+    try { slides=JSON.parse(data.content||'[]'); if(!slides.length) slides=[{id:1,theme:'',elements:[]}]; } catch(e){slides=[{id:1,theme:'',elements:[]}];}
+    currentSlideIdx=0; loadCurrentSlide(); setStatus('');
+  }
+}
+
+async function loadDocList() {
+  if(!currentUser) { document.getElementById('doc-list').innerHTML='<div class="no-docs-msg">Sign in to load<br>saved presentations.</div>'; return; }
+  const {data}=await sb.from('documents').select('*').eq('user_id',currentUser.id).eq('app','stage').order('updated_at',{ascending:false});
+  const list=document.getElementById('doc-list');
+  if(!data||data.length===0){list.innerHTML='<div class="no-docs-msg">No presentations yet.</div>';return;}
+  list.innerHTML=data.map(doc=>`
+    <div class="sidebar-doc ${doc.id===currentDocId?'active':''}" data-id="${doc.id}" onclick="switchDoc('${doc.id}')">
+      <div class="sidebar-doc-title">${doc.title||'Untitled'}</div>
+      <div class="sidebar-doc-date">${new Date(doc.updated_at).toLocaleDateString()}</div>
+      <button class="sidebar-doc-del" onclick="event.stopPropagation();deleteDoc('${doc.id}')" title="Delete">✕</button>
+    </div>`).join('');
+}
+
+async function switchDoc(id) { await loadDocFromId(id); await loadDocList(); }
+async function deleteDoc(id) { if(!confirm('Delete?')) return; await sb.from('documents').delete().eq('id',id); if(id===currentDocId) newDocument(); await loadDocList(); }
+function newDocument() { currentDocId=null; slides=[{id:1,theme:'',elements:[]}]; currentSlideIdx=0; document.getElementById('doc-title').value='Untitled Presentation'; loadCurrentSlide(); setStatus(''); history.replaceState(null,'','stage.html'); }
+
+async function init() {
+  const {data:{user}}=await sb.auth.getUser();
+  const isGuest=!user;
+  if(!user && !sessionStorage.getItem('forge_guest')){window.location.href='index.html';return;}
+  currentUser=user||null;
+  if(isGuest){document.getElementById('guest-banner').classList.add('visible');}
+  loadCurrentSlide();
+  await loadDocList();
+  const params=new URLSearchParams(location.search);
+  if(params.get('doc')) await loadDocFromId(params.get('doc'));
+  document.getElementById('doc-title').addEventListener('input',scheduleAutoSave);
+}
+
+init();
+// Guest save interception
+function guestSaveCheck() {
+  if (!currentUser) {
+    if (confirm('You\'re using Forge as a guest. Sign in to save your work to the cloud.\n\nGo to sign in?')) {
+      window.location.href = 'index.html';
+    }
+    return false;
+  }
+  return true;
+}
+
+</script>
+</body>
+</html>
